@@ -1,8 +1,5 @@
 """Tests for the WaterSteer config flow."""
 
-from homeassistant import config_entries
-from homeassistant.data_entry_flow import FlowResultType
-
 from custom_components.watersteer.const import (
     CONF_DHW_TEMPERATURE_ENTITY,
     CONF_ELECTRICITY_PRICE_ENTITY,
@@ -13,6 +10,8 @@ from custom_components.watersteer.const import (
     SYSTEM_TYPE_HEAT_PUMP,
     SYSTEM_TYPE_STANDALONE,
 )
+from homeassistant import config_entries
+from homeassistant.data_entry_flow import FlowResultType
 
 
 async def test_standalone_config_flow(hass) -> None:

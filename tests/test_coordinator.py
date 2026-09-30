@@ -1,9 +1,8 @@
 """Tests for the WaterSteer data coordinator helpers."""
 
+from custom_components.watersteer.coordinator import _as_float, _temperature_celsius
 from homeassistant.const import UnitOfTemperature
 from homeassistant.core import State
-
-from custom_components.watersteer.coordinator import _as_float, _temperature_celsius
 
 
 def test_as_float_valid_number() -> None:
