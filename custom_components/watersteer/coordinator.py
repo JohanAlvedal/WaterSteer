@@ -6,8 +6,10 @@ import logging
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.const import UnitOfTemperature
+from homeassistant.core import HomeAssistant, State
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+from homeassistant.util.unit_conversion import TemperatureConverter
 
 from .const import (
     CONF_DHW_TEMPERATURE_ENTITY,
@@ -36,6 +38,29 @@ def _as_float(value: str | None) -> float | None:
         return None
 
 
+def _temperature_celsius(state: State | None) -> float | None:
+    """Return a temperature state normalized to degrees Celsius."""
+    if state is None:
+        return None
+
+    value = _as_float(state.state)
+    if value is None:
+        return None
+
+    unit = state.attributes.get("unit_of_measurement")
+    if unit is None:
+        return None
+
+    try:
+        return TemperatureConverter.convert(
+            value,
+            unit,
+            UnitOfTemperature.CELSIUS,
+        )
+    except (TypeError, ValueError):
+        return None
+
+
 class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Collect and normalize WaterSteer input data."""
 
@@ -57,9 +82,7 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         temperature_state = self.hass.states.get(temperature_entity)
         price_state = self.hass.states.get(price_entity)
 
-        dhw_temperature = _as_float(
-            temperature_state.state if temperature_state is not None else None
-        )
+        dhw_temperature = _temperature_celsius(temperature_state)
         electricity_price = _as_float(
             price_state.state if price_state is not None else None
         )
@@ -87,6 +110,11 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "data_valid": data_valid,
             "system_type": self.entry.data[CONF_SYSTEM_TYPE],
             "dhw_temperature": dhw_temperature,
+            "dhw_temperature_source_unit": (
+                temperature_state.attributes.get("unit_of_measurement")
+                if temperature_state is not None
+                else None
+            ),
             "electricity_price": electricity_price,
             "dhw_temperature_entity": temperature_entity,
             "electricity_price_entity": price_entity,

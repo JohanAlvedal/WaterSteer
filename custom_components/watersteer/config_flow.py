@@ -83,7 +83,10 @@ class WaterSteerConfigFlow(ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema(
                 {
                     vol.Required(CONF_DHW_TEMPERATURE_ENTITY): EntitySelector(
-                        EntitySelectorConfig(domain="sensor")
+                        EntitySelectorConfig(
+                            domain="sensor",
+                            device_class="temperature",
+                        )
                     ),
                     vol.Required(CONF_ELECTRICITY_PRICE_ENTITY): EntitySelector(
                         EntitySelectorConfig(domain="sensor")
@@ -108,7 +111,10 @@ class WaterSteerConfigFlow(ConfigFlow, domain=DOMAIN):
                         EntitySelectorConfig(domain="switch")
                     ),
                     vol.Optional(CONF_STANDALONE_POWER_SENSOR): EntitySelector(
-                        EntitySelectorConfig(domain="sensor")
+                        EntitySelectorConfig(
+                            domain="sensor",
+                            device_class="power",
+                        )
                     ),
                 }
             ),
