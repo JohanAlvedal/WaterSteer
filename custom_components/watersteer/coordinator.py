@@ -114,9 +114,7 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # WaterSteer 0.1 never actively blocks DHW production. This explicit
         # allow state is the fail-safe baseline for later planner/controller logic.
         dhw_allowed = True
-        dhw_allowed_reason = (
-            "learning_observation" if data_valid else "safety_fallback"
-        )
+        dhw_allowed_reason = "learning_observation" if data_valid else "safety_fallback"
 
         return {
             "mode": mode,

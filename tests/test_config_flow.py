@@ -119,7 +119,4 @@ async def test_options_flow_changes_heat_pump_configuration(hass) -> None:
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["data"][CONF_SYSTEM_TYPE] == SYSTEM_TYPE_HEAT_PUMP
-    assert (
-        result["data"][CONF_DHW_TEMPERATURE_ENTITY]
-        == "sensor.new_dhw_temperature"
-    )
+    assert result["data"][CONF_DHW_TEMPERATURE_ENTITY] == "sensor.new_dhw_temperature"
