@@ -34,7 +34,7 @@ def _as_float(value: str | None) -> float | None:
 
     try:
         return float(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
 
 
@@ -57,7 +57,7 @@ def _temperature_celsius(state: State | None) -> float | None:
             unit,
             UnitOfTemperature.CELSIUS,
         )
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
 
 

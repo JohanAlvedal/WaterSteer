@@ -54,8 +54,7 @@ async def async_setup_entry(
     """Set up WaterSteer sensors."""
     coordinator: WaterSteerDataUpdateCoordinator = entry.runtime_data
     async_add_entities(
-        WaterSteerSensor(coordinator, entry, description)
-        for description in SENSORS
+        WaterSteerSensor(coordinator, entry, description) for description in SENSORS
     )
 
 

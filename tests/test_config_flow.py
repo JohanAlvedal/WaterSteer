@@ -47,10 +47,7 @@ async def test_standalone_config_flow(hass) -> None:
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["data"][CONF_SYSTEM_TYPE] == SYSTEM_TYPE_STANDALONE
-    assert (
-        result["data"][CONF_STANDALONE_CONTROL_SWITCH]
-        == "switch.water_heater"
-    )
+    assert result["data"][CONF_STANDALONE_CONTROL_SWITCH] == "switch.water_heater"
 
 
 async def test_heat_pump_config_flow(hass) -> None:
