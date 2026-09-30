@@ -19,7 +19,15 @@ async def async_get_config_entry_diagnostics(
     return {
         "config_entry": {
             "title": entry.title,
-            "data": dict(entry.data),
+            "system_type": entry.data.get("system_type"),
+            "configured_inputs": {
+                key: value
+                for key, value in entry.data.items()
+                if not key.endswith("_action")
+            },
+            "configured_actions": [
+                key for key in entry.data if key.endswith("_action")
+            ],
         },
         "coordinator": dict(coordinator.data),
     }

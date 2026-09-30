@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -11,12 +12,17 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from .const import (
     CONF_DHW_TEMPERATURE_ENTITY,
     CONF_ELECTRICITY_PRICE_ENTITY,
+    CONF_HEAT_PUMP_DHW_ACTIVE_ENTITY,
+    CONF_STANDALONE_CONTROL_SWITCH,
+    CONF_STANDALONE_POWER_SENSOR,
     CONF_SYSTEM_TYPE,
     DEFAULT_UPDATE_INTERVAL,
     DOMAIN,
     MODE_LEARNING,
     MODE_SAFETY,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def _as_float(value: str | None) -> float | None:
@@ -37,7 +43,7 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Initialize the WaterSteer coordinator."""
         super().__init__(
             hass,
-            logger=__import__("logging").getLogger(__name__),
+            logger=_LOGGER,
             name=DOMAIN,
             update_interval=DEFAULT_UPDATE_INTERVAL,
         )
@@ -58,6 +64,22 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             price_state.state if price_state is not None else None
         )
 
+        standalone_switch = self.entry.data.get(CONF_STANDALONE_CONTROL_SWITCH)
+        standalone_power_sensor = self.entry.data.get(CONF_STANDALONE_POWER_SENSOR)
+        dhw_active_entity = self.entry.data.get(CONF_HEAT_PUMP_DHW_ACTIVE_ENTITY)
+
+        standalone_switch_state = (
+            self.hass.states.get(standalone_switch) if standalone_switch else None
+        )
+        standalone_power_state = (
+            self.hass.states.get(standalone_power_sensor)
+            if standalone_power_sensor
+            else None
+        )
+        dhw_active_state = (
+            self.hass.states.get(dhw_active_entity) if dhw_active_entity else None
+        )
+
         data_valid = dhw_temperature is not None
 
         return {
@@ -68,4 +90,20 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "electricity_price": electricity_price,
             "dhw_temperature_entity": temperature_entity,
             "electricity_price_entity": price_entity,
+            "standalone_control_switch": standalone_switch,
+            "standalone_control_switch_state": (
+                standalone_switch_state.state
+                if standalone_switch_state is not None
+                else None
+            ),
+            "standalone_power_sensor": standalone_power_sensor,
+            "standalone_power": _as_float(
+                standalone_power_state.state
+                if standalone_power_state is not None
+                else None
+            ),
+            "heat_pump_dhw_active_entity": dhw_active_entity,
+            "heat_pump_dhw_active_state": (
+                dhw_active_state.state if dhw_active_state is not None else None
+            ),
         }

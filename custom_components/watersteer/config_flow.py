@@ -8,6 +8,7 @@ import voluptuous as vol
 
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.helpers.selector import (
+    ActionSelector,
     EntitySelector,
     EntitySelectorConfig,
     SelectSelector,
@@ -18,8 +19,16 @@ from homeassistant.helpers.selector import (
 from .const import (
     CONF_DHW_TEMPERATURE_ENTITY,
     CONF_ELECTRICITY_PRICE_ENTITY,
+    CONF_HEAT_PUMP_BLOCK_ACTION,
+    CONF_HEAT_PUMP_BOOST_ACTION,
+    CONF_HEAT_PUMP_DHW_ACTIVE_ENTITY,
+    CONF_HEAT_PUMP_NORMAL_ACTION,
+    CONF_STANDALONE_CONTROL_SWITCH,
+    CONF_STANDALONE_POWER_SENSOR,
     CONF_SYSTEM_TYPE,
     DOMAIN,
+    SYSTEM_TYPE_HEAT_PUMP,
+    SYSTEM_TYPE_STANDALONE,
     SYSTEM_TYPES,
 )
 
@@ -62,7 +71,12 @@ class WaterSteerConfigFlow(ConfigFlow, domain=DOMAIN):
         """Configure the required WaterSteer input sensors."""
         if user_input is not None:
             self._data.update(user_input)
-            return self.async_create_entry(title="WaterSteer", data=self._data)
+
+            if self._data[CONF_SYSTEM_TYPE] == SYSTEM_TYPE_STANDALONE:
+                return await self.async_step_standalone_control()
+
+            if self._data[CONF_SYSTEM_TYPE] == SYSTEM_TYPE_HEAT_PUMP:
+                return await self.async_step_heat_pump_control()
 
         return self.async_show_form(
             step_id="sensors",
@@ -77,3 +91,51 @@ class WaterSteerConfigFlow(ConfigFlow, domain=DOMAIN):
                 }
             ),
         )
+
+    async def async_step_standalone_control(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Configure a standalone water heater."""
+        if user_input is not None:
+            self._data.update(user_input)
+            return self._create_entry()
+
+        return self.async_show_form(
+            step_id="standalone_control",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_STANDALONE_CONTROL_SWITCH): EntitySelector(
+                        EntitySelectorConfig(domain="switch")
+                    ),
+                    vol.Optional(CONF_STANDALONE_POWER_SENSOR): EntitySelector(
+                        EntitySelectorConfig(domain="sensor")
+                    ),
+                }
+            ),
+        )
+
+    async def async_step_heat_pump_control(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Configure heat-pump domestic hot water integration points."""
+        if user_input is not None:
+            self._data.update(user_input)
+            return self._create_entry()
+
+        return self.async_show_form(
+            step_id="heat_pump_control",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(CONF_HEAT_PUMP_DHW_ACTIVE_ENTITY): EntitySelector(
+                        EntitySelectorConfig(domain=["binary_sensor", "sensor"])
+                    ),
+                    vol.Optional(CONF_HEAT_PUMP_BOOST_ACTION): ActionSelector(),
+                    vol.Optional(CONF_HEAT_PUMP_BLOCK_ACTION): ActionSelector(),
+                    vol.Optional(CONF_HEAT_PUMP_NORMAL_ACTION): ActionSelector(),
+                }
+            ),
+        )
+
+    def _create_entry(self) -> ConfigFlowResult:
+        """Create the WaterSteer config entry."""
+        return self.async_create_entry(title="WaterSteer", data=self._data)
