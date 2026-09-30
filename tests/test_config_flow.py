@@ -12,6 +12,7 @@ from custom_components.watersteer.const import (
 )
 from homeassistant import config_entries
 from homeassistant.data_entry_flow import FlowResultType
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 
 async def test_standalone_config_flow(hass) -> None:
@@ -83,3 +84,42 @@ async def test_heat_pump_config_flow(hass) -> None:
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["data"][CONF_SYSTEM_TYPE] == SYSTEM_TYPE_HEAT_PUMP
     assert result["data"][CONF_HEAT_PUMP_BOOST_ACTION] == boost_action
+
+
+async def test_options_flow_changes_heat_pump_configuration(hass) -> None:
+    """Options flow allows an existing WaterSteer entry to be reconfigured."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SYSTEM_TYPE: SYSTEM_TYPE_HEAT_PUMP,
+            CONF_DHW_TEMPERATURE_ENTITY: "sensor.old_dhw_temperature",
+            CONF_ELECTRICITY_PRICE_ENTITY: "sensor.old_electricity_price",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "init"
+
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            CONF_SYSTEM_TYPE: SYSTEM_TYPE_HEAT_PUMP,
+            CONF_DHW_TEMPERATURE_ENTITY: "sensor.new_dhw_temperature",
+            CONF_ELECTRICITY_PRICE_ENTITY: "sensor.new_electricity_price",
+        },
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "heat_pump_control"
+
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {},
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_SYSTEM_TYPE] == SYSTEM_TYPE_HEAT_PUMP
+    assert (
+        result["data"][CONF_DHW_TEMPERATURE_ENTITY]
+        == "sensor.new_dhw_temperature"
+    )

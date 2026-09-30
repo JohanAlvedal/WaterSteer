@@ -54,6 +54,52 @@
       }
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "WaterSteer configuration",
+        "description": "Change WaterSteer inputs and system type. The integration reloads automatically after the configuration is saved.",
+        "data": {
+          "system_type": "System type",
+          "dhw_temperature_entity": "DHW temperature sensor",
+          "electricity_price_entity": "Electricity price sensor"
+        },
+        "data_description": {
+          "system_type": "Choose a standalone water heater or a heat pump with integrated domestic hot water.",
+          "dhw_temperature_entity": "Sensor that represents the current domestic hot water temperature.",
+          "electricity_price_entity": "Sensor that represents the current electricity price."
+        }
+      },
+      "standalone_control": {
+        "title": "Standalone water heater",
+        "description": "Configure the relay or contactor used to enable the water heater.",
+        "data": {
+          "standalone_control_switch": "Water heater control switch",
+          "standalone_power_sensor": "Water heater power sensor"
+        },
+        "data_description": {
+          "standalone_control_switch": "Switch entity that controls the contactor, relay, or other enable signal for the standalone water heater.",
+          "standalone_power_sensor": "Optional power sensor for the water heater."
+        }
+      },
+      "heat_pump_control": {
+        "title": "Heat pump domestic hot water",
+        "description": "Configure the available domestic hot water status signal and control actions.",
+        "data": {
+          "heat_pump_dhw_active_entity": "DHW active entity",
+          "heat_pump_boost_action": "DHW boost action",
+          "heat_pump_block_action": "DHW block action",
+          "heat_pump_normal_action": "DHW normal action"
+        },
+        "data_description": {
+          "heat_pump_dhw_active_entity": "Optional sensor or binary sensor that indicates whether the heat pump is currently producing domestic hot water.",
+          "heat_pump_boost_action": "Optional Home Assistant action that requests domestic hot water production.",
+          "heat_pump_block_action": "Optional Home Assistant action that blocks or disables normal domestic hot water production.",
+          "heat_pump_normal_action": "Optional Home Assistant action that returns domestic hot water operation to normal."
+        }
+      }
+    }
+  },
   "selector": {
     "system_type": {
       "options": {
@@ -69,6 +115,11 @@
       },
       "dhw_temperature": {
         "name": "DHW temperature"
+      }
+    },
+    "binary_sensor": {
+      "dhw_allowed": {
+        "name": "DHW allowed"
       }
     }
   }

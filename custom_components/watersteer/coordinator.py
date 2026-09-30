@@ -74,10 +74,15 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
         self.entry = entry
 
+    def _config(self) -> dict[str, Any]:
+        """Return effective configuration with options overriding setup data."""
+        return {**self.entry.data, **self.entry.options}
+
     async def _async_update_data(self) -> dict[str, Any]:
         """Read WaterSteer inputs from the Home Assistant state machine."""
-        temperature_entity = self.entry.data[CONF_DHW_TEMPERATURE_ENTITY]
-        price_entity = self.entry.data[CONF_ELECTRICITY_PRICE_ENTITY]
+        config = self._config()
+        temperature_entity = config[CONF_DHW_TEMPERATURE_ENTITY]
+        price_entity = config[CONF_ELECTRICITY_PRICE_ENTITY]
 
         temperature_state = self.hass.states.get(temperature_entity)
         price_state = self.hass.states.get(price_entity)
@@ -87,9 +92,9 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             price_state.state if price_state is not None else None
         )
 
-        standalone_switch = self.entry.data.get(CONF_STANDALONE_CONTROL_SWITCH)
-        standalone_power_sensor = self.entry.data.get(CONF_STANDALONE_POWER_SENSOR)
-        dhw_active_entity = self.entry.data.get(CONF_HEAT_PUMP_DHW_ACTIVE_ENTITY)
+        standalone_switch = config.get(CONF_STANDALONE_CONTROL_SWITCH)
+        standalone_power_sensor = config.get(CONF_STANDALONE_POWER_SENSOR)
+        dhw_active_entity = config.get(CONF_HEAT_PUMP_DHW_ACTIVE_ENTITY)
 
         standalone_switch_state = (
             self.hass.states.get(standalone_switch) if standalone_switch else None
@@ -104,11 +109,21 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
 
         data_valid = dhw_temperature is not None
+        mode = MODE_LEARNING if data_valid else MODE_SAFETY
+
+        # WaterSteer 0.1 never actively blocks DHW production. This explicit
+        # allow state is the fail-safe baseline for later planner/controller logic.
+        dhw_allowed = True
+        dhw_allowed_reason = (
+            "learning_observation" if data_valid else "safety_fallback"
+        )
 
         return {
-            "mode": MODE_LEARNING if data_valid else MODE_SAFETY,
+            "mode": mode,
             "data_valid": data_valid,
-            "system_type": self.entry.data[CONF_SYSTEM_TYPE],
+            "system_type": config[CONF_SYSTEM_TYPE],
+            "dhw_allowed": dhw_allowed,
+            "dhw_allowed_reason": dhw_allowed_reason,
             "dhw_temperature": dhw_temperature,
             "dhw_temperature_source_unit": (
                 temperature_state.attributes.get("unit_of_measurement")

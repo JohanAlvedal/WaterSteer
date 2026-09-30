@@ -4,7 +4,6 @@
   "codeowners": ["@JohanAlvedal"],
   "config_flow": true,
   "documentation": "https://github.com/JohanAlvedal/WaterSteer",
-  "integration_type": "helper",
   "iot_class": "calculated",
   "issue_tracker": "https://github.com/JohanAlvedal/WaterSteer/issues",
   "requirements": [],
