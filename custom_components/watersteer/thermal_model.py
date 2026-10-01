@@ -206,7 +206,7 @@ class DhwThermalModel:
             try:
                 timestamp = float(item["timestamp"])
                 temperature = float(item["temperature"])
-            except (KeyError, TypeError, ValueError):
+            except KeyError, TypeError, ValueError:
                 continue
 
             heating_active = item.get("heating_active")
