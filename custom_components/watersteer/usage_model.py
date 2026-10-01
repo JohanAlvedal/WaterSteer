@@ -225,7 +225,9 @@ class DhwUsageModel:
     def _purge_old(self, now: float) -> None:
         """Keep only the rolling usage-learning window."""
         cutoff = now - MAX_HISTORY_DAYS * 24 * 60 * 60
-        self._samples = [sample for sample in self._samples if sample.timestamp >= cutoff]
+        self._samples = [
+            sample for sample in self._samples if sample.timestamp >= cutoff
+        ]
         self._events = [event for event in self._events if event.timestamp >= cutoff]
         self._last_event_timestamp = (
             self._events[-1].timestamp if self._events else None
