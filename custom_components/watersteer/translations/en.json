@@ -38,15 +38,17 @@
       },
       "heat_pump_control": {
         "title": "Heat pump domestic hot water",
-        "description": "Configure the signals and actions available for domestic hot water control. These are stored for future WaterSteer control logic; version 0.1 does not execute them.",
+        "description": "Configure any DHW signals your heat-pump integration exposes. All status signals are optional; WaterSteer must also work when no explicit DHW production-active signal exists.",
         "data": {
-          "heat_pump_dhw_active_entity": "DHW active entity",
+          "heat_pump_dhw_available_entity": "DHW production available entity",
+          "heat_pump_dhw_active_entity": "DHW production active entity",
           "heat_pump_boost_action": "DHW boost action",
           "heat_pump_block_action": "DHW block action",
           "heat_pump_normal_action": "DHW normal action"
         },
         "data_description": {
-          "heat_pump_dhw_active_entity": "Optional sensor or binary sensor that indicates whether the heat pump is currently producing domestic hot water.",
+          "heat_pump_dhw_available_entity": "Optional binary sensor that indicates whether domestic hot water production is available or permitted. This does not mean the heat pump is currently producing hot water.",
+          "heat_pump_dhw_active_entity": "Optional advanced signal. Select this only if your heat-pump integration exposes an entity that indicates actual DHW production. Many heat pumps do not provide this signal.",
           "heat_pump_boost_action": "Optional Home Assistant action that actively requests domestic hot water production, for example Extra hot water, Temporary luxury, or DHW boost.",
           "heat_pump_block_action": "Optional Home Assistant action that blocks or disables normal domestic hot water production.",
           "heat_pump_normal_action": "Optional Home Assistant action that returns domestic hot water operation to its normal heat-pump setting."
@@ -84,15 +86,17 @@
       },
       "heat_pump_control": {
         "title": "Heat pump domestic hot water",
-        "description": "Configure the available domestic hot water status signal and control actions.",
+        "description": "Configure any DHW signals your heat-pump integration exposes. All status signals are optional.",
         "data": {
-          "heat_pump_dhw_active_entity": "DHW active entity",
+          "heat_pump_dhw_available_entity": "DHW production available entity",
+          "heat_pump_dhw_active_entity": "DHW production active entity",
           "heat_pump_boost_action": "DHW boost action",
           "heat_pump_block_action": "DHW block action",
           "heat_pump_normal_action": "DHW normal action"
         },
         "data_description": {
-          "heat_pump_dhw_active_entity": "Optional sensor or binary sensor that indicates whether the heat pump is currently producing domestic hot water.",
+          "heat_pump_dhw_available_entity": "Optional binary sensor that indicates whether domestic hot water production is available or permitted. This does not mean the heat pump is currently producing hot water.",
+          "heat_pump_dhw_active_entity": "Optional advanced signal. Select this only if your heat-pump integration exposes an entity that indicates actual DHW production. Many heat pumps do not provide this signal.",
           "heat_pump_boost_action": "Optional Home Assistant action that requests domestic hot water production.",
           "heat_pump_block_action": "Optional Home Assistant action that blocks or disables normal domestic hot water production.",
           "heat_pump_normal_action": "Optional Home Assistant action that returns domestic hot water operation to normal."

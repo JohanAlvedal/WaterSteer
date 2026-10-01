@@ -15,18 +15,21 @@ async def async_get_config_entry_diagnostics(
 ) -> dict[str, Any]:
     """Return diagnostics for a WaterSteer config entry."""
     coordinator: WaterSteerDataUpdateCoordinator = entry.runtime_data
+    config = {**entry.data, **entry.options}
 
     return {
         "config_entry": {
             "title": entry.title,
-            "system_type": entry.data.get("system_type"),
+            "system_type": config.get("system_type"),
             "configured_inputs": {
                 key: value
-                for key, value in entry.data.items()
-                if not key.endswith("_action")
+                for key, value in config.items()
+                if not key.endswith("_action") and value is not None
             },
             "configured_actions": [
-                key for key in entry.data if key.endswith("_action")
+                key
+                for key, value in config.items()
+                if key.endswith("_action") and value is not None
             ],
         },
         "coordinator": dict(coordinator.data),

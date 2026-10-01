@@ -27,6 +27,7 @@ from .const import (
     CONF_HEAT_PUMP_BLOCK_ACTION,
     CONF_HEAT_PUMP_BOOST_ACTION,
     CONF_HEAT_PUMP_DHW_ACTIVE_ENTITY,
+    CONF_HEAT_PUMP_DHW_AVAILABLE_ENTITY,
     CONF_HEAT_PUMP_NORMAL_ACTION,
     CONF_STANDALONE_CONTROL_SWITCH,
     CONF_STANDALONE_POWER_SENSOR,
@@ -40,6 +41,7 @@ CONTROL_KEYS = (
     CONF_STANDALONE_CONTROL_SWITCH,
     CONF_STANDALONE_POWER_SENSOR,
     CONF_HEAT_PUMP_DHW_ACTIVE_ENTITY,
+    CONF_HEAT_PUMP_DHW_AVAILABLE_ENTITY,
     CONF_HEAT_PUMP_BOOST_ACTION,
     CONF_HEAT_PUMP_BLOCK_ACTION,
     CONF_HEAT_PUMP_NORMAL_ACTION,
@@ -91,6 +93,9 @@ def _heat_pump_schema() -> vol.Schema:
     """Return the heat-pump control schema."""
     return vol.Schema(
         {
+            vol.Optional(CONF_HEAT_PUMP_DHW_AVAILABLE_ENTITY): EntitySelector(
+                EntitySelectorConfig(domain="binary_sensor")
+            ),
             vol.Optional(CONF_HEAT_PUMP_DHW_ACTIVE_ENTITY): EntitySelector(
                 EntitySelectorConfig(domain=["binary_sensor", "sensor"])
             ),

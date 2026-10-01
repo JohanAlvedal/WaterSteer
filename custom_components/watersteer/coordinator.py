@@ -15,6 +15,7 @@ from .const import (
     CONF_DHW_TEMPERATURE_ENTITY,
     CONF_ELECTRICITY_PRICE_ENTITY,
     CONF_HEAT_PUMP_DHW_ACTIVE_ENTITY,
+    CONF_HEAT_PUMP_DHW_AVAILABLE_ENTITY,
     CONF_STANDALONE_CONTROL_SWITCH,
     CONF_STANDALONE_POWER_SENSOR,
     CONF_SYSTEM_TYPE,
@@ -95,6 +96,7 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         standalone_switch = config.get(CONF_STANDALONE_CONTROL_SWITCH)
         standalone_power_sensor = config.get(CONF_STANDALONE_POWER_SENSOR)
         dhw_active_entity = config.get(CONF_HEAT_PUMP_DHW_ACTIVE_ENTITY)
+        dhw_available_entity = config.get(CONF_HEAT_PUMP_DHW_AVAILABLE_ENTITY)
 
         standalone_switch_state = (
             self.hass.states.get(standalone_switch) if standalone_switch else None
@@ -106,6 +108,11 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
         dhw_active_state = (
             self.hass.states.get(dhw_active_entity) if dhw_active_entity else None
+        )
+        dhw_available_state = (
+            self.hass.states.get(dhw_available_entity)
+            if dhw_available_entity
+            else None
         )
 
         data_valid = dhw_temperature is not None
@@ -146,5 +153,11 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "heat_pump_dhw_active_entity": dhw_active_entity,
             "heat_pump_dhw_active_state": (
                 dhw_active_state.state if dhw_active_state is not None else None
+            ),
+            "heat_pump_dhw_available_entity": dhw_available_entity,
+            "heat_pump_dhw_available_state": (
+                dhw_available_state.state
+                if dhw_available_state is not None
+                else None
             ),
         }
