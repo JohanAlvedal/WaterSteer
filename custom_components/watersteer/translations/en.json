@@ -24,6 +24,22 @@
           "electricity_price_entity": "Sensor that represents the current electricity price. Future price data will be added by the price planner."
         }
       },
+      "thresholds": {
+        "title": "DHW temperature thresholds",
+        "description": "Set the temperature bands used by the shadow classifier. WaterSteer does not execute physical control yet. The values must be ordered from lowest to highest.",
+        "data": {
+          "absolute_minimum": "Absolute minimum",
+          "comfort_minimum": "Comfort minimum",
+          "normal_target": "Normal target",
+          "precharge_target": "Precharge target"
+        },
+        "data_description": {
+          "absolute_minimum": "At or below this temperature WaterSteer requests immediate forced heating.",
+          "comfort_minimum": "Below this temperature WaterSteer requests comfort recovery even if electricity is expensive.",
+          "normal_target": "At or above this temperature the shadow classifier considers stored hot water sufficient and would hold normal DHW heating.",
+          "precharge_target": "Upper target reserved for future price-based precharging. Cheap electricity alone will never be enough to trigger heating."
+        }
+      },
       "standalone_control": {
         "title": "Standalone water heater",
         "description": "Configure the relay or contactor used to enable the water heater. WaterSteer 0.1 only observes these inputs and does not switch the heater yet.",
@@ -54,6 +70,9 @@
           "heat_pump_normal_action": "Optional Home Assistant action that returns domestic hot water operation to its normal heat-pump setting."
         }
       }
+    },
+    "error": {
+      "invalid_threshold_order": "Temperature thresholds must be ordered: absolute minimum < comfort minimum < normal target < precharge target."
     }
   },
   "options": {
@@ -70,6 +89,22 @@
           "system_type": "Choose a standalone water heater or a heat pump with integrated domestic hot water.",
           "dhw_temperature_entity": "Sensor that represents the current domestic hot water temperature.",
           "electricity_price_entity": "Sensor that represents the current electricity price."
+        }
+      },
+      "thresholds": {
+        "title": "DHW temperature thresholds",
+        "description": "Set the temperature bands used by the shadow classifier. These settings do not execute physical control yet.",
+        "data": {
+          "absolute_minimum": "Absolute minimum",
+          "comfort_minimum": "Comfort minimum",
+          "normal_target": "Normal target",
+          "precharge_target": "Precharge target"
+        },
+        "data_description": {
+          "absolute_minimum": "At or below this temperature WaterSteer requests immediate forced heating.",
+          "comfort_minimum": "Below this temperature WaterSteer requests comfort recovery.",
+          "normal_target": "At or above this temperature WaterSteer would hold normal DHW heating.",
+          "precharge_target": "Upper target reserved for future price-based precharging."
         }
       },
       "standalone_control": {
@@ -102,6 +137,9 @@
           "heat_pump_normal_action": "Optional Home Assistant action that returns domestic hot water operation to normal."
         }
       }
+    },
+    "error": {
+      "invalid_threshold_order": "Temperature thresholds must be ordered: absolute minimum < comfort minimum < normal target < precharge target."
     }
   },
   "selector": {
@@ -117,6 +155,9 @@
       "mode": {
         "name": "Mode"
       },
+      "decision": {
+        "name": "Decision"
+      },
       "dhw_temperature": {
         "name": "DHW temperature"
       }
@@ -124,6 +165,12 @@
     "binary_sensor": {
       "dhw_allowed": {
         "name": "DHW allowed"
+      },
+      "dhw_request": {
+        "name": "DHW request"
+      },
+      "force_request": {
+        "name": "Force request"
       }
     }
   }

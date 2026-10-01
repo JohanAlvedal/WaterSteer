@@ -37,6 +37,11 @@ SENSORS: tuple[WaterSteerSensorEntityDescription, ...] = (
         value_fn=lambda data: data["mode"],
     ),
     WaterSteerSensorEntityDescription(
+        key="decision",
+        translation_key="decision",
+        value_fn=lambda data: data["decision"],
+    ),
+    WaterSteerSensorEntityDescription(
         key="dhw_temperature",
         translation_key="dhw_temperature",
         device_class=SensorDeviceClass.TEMPERATURE,

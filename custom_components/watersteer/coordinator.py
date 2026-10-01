@@ -12,18 +12,27 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util.unit_conversion import TemperatureConverter
 
 from .const import (
+    CONF_ABSOLUTE_MINIMUM,
+    CONF_COMFORT_MINIMUM,
     CONF_DHW_TEMPERATURE_ENTITY,
     CONF_ELECTRICITY_PRICE_ENTITY,
     CONF_HEAT_PUMP_DHW_ACTIVE_ENTITY,
     CONF_HEAT_PUMP_DHW_AVAILABLE_ENTITY,
+    CONF_NORMAL_TARGET,
+    CONF_PRECHARGE_TARGET,
     CONF_STANDALONE_CONTROL_SWITCH,
     CONF_STANDALONE_POWER_SENSOR,
     CONF_SYSTEM_TYPE,
+    DEFAULT_ABSOLUTE_MINIMUM,
+    DEFAULT_COMFORT_MINIMUM,
+    DEFAULT_NORMAL_TARGET,
+    DEFAULT_PRECHARGE_TARGET,
     DEFAULT_UPDATE_INTERVAL,
     DOMAIN,
     MODE_LEARNING,
     MODE_SAFETY,
 )
+from .controller import DhwThresholds, classify_dhw_temperature
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -80,7 +89,7 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return {**self.entry.data, **self.entry.options}
 
     async def _async_update_data(self) -> dict[str, Any]:
-        """Read WaterSteer inputs from the Home Assistant state machine."""
+        """Read WaterSteer inputs and calculate a shadow-control decision."""
         config = self._config()
         temperature_entity = config[CONF_DHW_TEMPERATURE_ENTITY]
         price_entity = config[CONF_ELECTRICITY_PRICE_ENTITY]
@@ -92,6 +101,20 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         electricity_price = _as_float(
             price_state.state if price_state is not None else None
         )
+
+        thresholds = DhwThresholds(
+            absolute_minimum=float(
+                config.get(CONF_ABSOLUTE_MINIMUM, DEFAULT_ABSOLUTE_MINIMUM)
+            ),
+            comfort_minimum=float(
+                config.get(CONF_COMFORT_MINIMUM, DEFAULT_COMFORT_MINIMUM)
+            ),
+            normal_target=float(config.get(CONF_NORMAL_TARGET, DEFAULT_NORMAL_TARGET)),
+            precharge_target=float(
+                config.get(CONF_PRECHARGE_TARGET, DEFAULT_PRECHARGE_TARGET)
+            ),
+        )
+        decision = classify_dhw_temperature(dhw_temperature, thresholds)
 
         standalone_switch = config.get(CONF_STANDALONE_CONTROL_SWITCH)
         standalone_power_sensor = config.get(CONF_STANDALONE_POWER_SENSOR)
@@ -114,19 +137,22 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
 
         data_valid = dhw_temperature is not None
-        mode = MODE_LEARNING if data_valid else MODE_SAFETY
-
-        # WaterSteer 0.1 never actively blocks DHW production. This explicit
-        # allow state is the fail-safe baseline for later planner/controller logic.
-        dhw_allowed = True
-        dhw_allowed_reason = "learning_observation" if data_valid else "safety_fallback"
+        mode = MODE_LEARNING if data_valid and thresholds.valid else MODE_SAFETY
 
         return {
             "mode": mode,
             "data_valid": data_valid,
+            "shadow_mode": True,
             "system_type": config[CONF_SYSTEM_TYPE],
-            "dhw_allowed": dhw_allowed,
-            "dhw_allowed_reason": dhw_allowed_reason,
+            "decision": decision.classification,
+            "decision_reason": decision.reason,
+            "dhw_allowed": decision.allowed,
+            "dhw_request": decision.request,
+            "force_request": decision.force_request,
+            "absolute_minimum": thresholds.absolute_minimum,
+            "comfort_minimum": thresholds.comfort_minimum,
+            "normal_target": thresholds.normal_target,
+            "precharge_target": thresholds.precharge_target,
             "dhw_temperature": dhw_temperature,
             "dhw_temperature_source_unit": (
                 temperature_state.attributes.get("unit_of_measurement")
