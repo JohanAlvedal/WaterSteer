@@ -2,7 +2,9 @@
 
 import pytest
 from custom_components.watersteer.controller import (
+    DhwDecision,
     DhwThresholds,
+    apply_thermal_confidence_guard,
     classify_dhw_temperature,
 )
 
@@ -77,3 +79,43 @@ def test_invalid_thresholds_fail_safe() -> None:
     assert decision.classification == "safety_fallback"
     assert decision.reason == "invalid_threshold_configuration"
     assert decision.allowed is True
+
+
+def test_low_thermal_confidence_prevents_braking() -> None:
+    """WaterSteer stays fail-open until thermal confidence is sufficient."""
+    hold = DhwDecision(
+        classification="temperature_hold",
+        reason="normal_target_reached",
+        allowed=False,
+        request=False,
+        force_request=False,
+    )
+
+    guarded = apply_thermal_confidence_guard(
+        hold,
+        thermal_confidence=35,
+        minimum_confidence=50,
+    )
+
+    assert guarded.classification == "learning_guard"
+    assert guarded.reason == "thermal_confidence_below_minimum"
+    assert guarded.allowed is True
+
+
+def test_sufficient_thermal_confidence_allows_hold() -> None:
+    """A hold decision is preserved after the confidence gate is satisfied."""
+    hold = DhwDecision(
+        classification="temperature_hold",
+        reason="normal_target_reached",
+        allowed=False,
+        request=False,
+        force_request=False,
+    )
+
+    guarded = apply_thermal_confidence_guard(
+        hold,
+        thermal_confidence=50,
+        minimum_confidence=50,
+    )
+
+    assert guarded == hold

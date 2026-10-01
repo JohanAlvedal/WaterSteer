@@ -12,8 +12,9 @@ def _coordinator_data() -> dict:
     """Return representative WaterSteer shadow-control data."""
     return {
         "shadow_mode": True,
-        "decision": "temperature_hold",
-        "decision_reason": "normal_target_reached",
+        "decision": "learning_guard",
+        "decision_reason": "thermal_confidence_below_minimum",
+        "raw_temperature_decision": "temperature_hold",
         "mode": "learning",
         "system_type": "heat_pump_integrated_dhw",
         "dhw_temperature": 50.7,
@@ -22,15 +23,22 @@ def _coordinator_data() -> dict:
         "comfort_minimum": 45.0,
         "normal_target": 50.0,
         "precharge_target": 55.0,
-        "dhw_allowed": False,
+        "learning_confidence": 35,
+        "minimum_thermal_confidence": 50,
+        "braking_confidence_ready": False,
+        "usage_probability_next_6h": 20.0,
+        "usage_learning_confidence": 15,
+        "occupancy_state": "away",
+        "dhw_allowed": True,
         "dhw_request": False,
         "force_request": False,
+        "usage_detected": False,
         "heat_pump_dhw_available_state": "on",
     }
 
 
-def test_dhw_allowed_off_means_shadow_braking() -> None:
-    """DHW allowed is off when the shadow classifier would brake production."""
+def test_dhw_allowed_remains_on_while_learning_confidence_is_low() -> None:
+    """DHW allowed remains on while the thermal confidence guard is active."""
     coordinator = Mock()
     coordinator.data = _coordinator_data()
     entry = Mock()
@@ -38,10 +46,12 @@ def test_dhw_allowed_off_means_shadow_braking() -> None:
 
     entity = WaterSteerDecisionBinarySensor(coordinator, entry, BINARY_SENSORS[0])
 
-    assert entity.is_on is False
-    assert entity.extra_state_attributes["shadow_mode"] is True
-    assert entity.extra_state_attributes["decision"] == "temperature_hold"
-    assert entity.extra_state_attributes["reason"] == "normal_target_reached"
+    assert entity.is_on is True
+    assert entity.extra_state_attributes["decision"] == "learning_guard"
+    assert entity.extra_state_attributes["raw_temperature_decision"] == (
+        "temperature_hold"
+    )
+    assert entity.extra_state_attributes["braking_confidence_ready"] is False
 
 
 def test_dhw_request_on_below_comfort() -> None:
@@ -52,6 +62,7 @@ def test_dhw_request_on_below_comfort() -> None:
         {
             "decision": "comfort_recovery",
             "decision_reason": "below_comfort_minimum",
+            "raw_temperature_decision": "comfort_recovery",
             "dhw_temperature": 43.0,
             "dhw_allowed": True,
             "dhw_request": True,
@@ -64,3 +75,16 @@ def test_dhw_request_on_below_comfort() -> None:
 
     assert entity.is_on is True
     assert entity.extra_state_attributes["current_temperature"] == 43.0
+
+
+def test_usage_detected_binary_sensor() -> None:
+    """Usage detection is exposed as a separate binary sensor."""
+    coordinator = Mock()
+    coordinator.data = _coordinator_data()
+    coordinator.data["usage_detected"] = True
+    entry = Mock()
+    entry.entry_id = "test_entry"
+
+    entity = WaterSteerDecisionBinarySensor(coordinator, entry, BINARY_SENSORS[3])
+
+    assert entity.is_on is True

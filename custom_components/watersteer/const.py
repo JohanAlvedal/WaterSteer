@@ -7,16 +7,19 @@ DOMAIN = "watersteer"
 CONF_SYSTEM_TYPE = "system_type"
 CONF_DHW_TEMPERATURE_ENTITY = "dhw_temperature_entity"
 CONF_ELECTRICITY_PRICE_ENTITY = "electricity_price_entity"
+CONF_OCCUPANCY_ENTITY = "occupancy_entity"
 
 CONF_ABSOLUTE_MINIMUM = "absolute_minimum"
 CONF_COMFORT_MINIMUM = "comfort_minimum"
 CONF_NORMAL_TARGET = "normal_target"
 CONF_PRECHARGE_TARGET = "precharge_target"
+CONF_MIN_THERMAL_CONFIDENCE = "min_thermal_confidence"
 
 DEFAULT_ABSOLUTE_MINIMUM = 40.0
 DEFAULT_COMFORT_MINIMUM = 45.0
 DEFAULT_NORMAL_TARGET = 50.0
 DEFAULT_PRECHARGE_TARGET = 55.0
+DEFAULT_MIN_THERMAL_CONFIDENCE = 50
 
 CONF_STANDALONE_CONTROL_SWITCH = "standalone_control_switch"
 CONF_STANDALONE_POWER_SENSOR = "standalone_power_sensor"

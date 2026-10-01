@@ -90,6 +90,35 @@ SENSORS: tuple[WaterSteerSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda data: data["learning_confidence"],
     ),
+    WaterSteerSensorEntityDescription(
+        key="usage_probability_next_6h",
+        translation_key="usage_probability_next_6h",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+        value_fn=lambda data: data["usage_probability_next_6h"],
+    ),
+    WaterSteerSensorEntityDescription(
+        key="next_expected_usage",
+        translation_key="next_expected_usage",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        value_fn=lambda data: data["next_expected_usage"],
+    ),
+    WaterSteerSensorEntityDescription(
+        key="typical_usage_drop",
+        translation_key="typical_usage_drop",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        value_fn=lambda data: data["typical_usage_drop"],
+    ),
+    WaterSteerSensorEntityDescription(
+        key="usage_learning_confidence",
+        translation_key="usage_learning_confidence",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda data: data["usage_learning_confidence"],
+    ),
 )
 
 
@@ -136,20 +165,35 @@ class WaterSteerSensor(
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
-        """Return thermal-learning details on learning-related sensors."""
-        if self.entity_description.key not in {
+        """Return learning details on learning-related sensors."""
+        data = self.coordinator.data
+
+        if self.entity_description.key in {
             "standby_loss",
             "heating_rate",
             "time_to_comfort",
             "learning_confidence",
         }:
-            return None
+            return {
+                "observation_count": data["thermal_observation_count"],
+                "observation_hours": round(data["thermal_observation_hours"], 2),
+                "passive_segment_count": data["passive_segment_count"],
+                "heating_segment_count": data["heating_segment_count"],
+                "heating_confidence": data["heating_confidence"],
+                "minimum_braking_confidence": data["minimum_thermal_confidence"],
+                "braking_confidence_ready": data["braking_confidence_ready"],
+            }
 
-        data = self.coordinator.data
-        return {
-            "observation_count": data["thermal_observation_count"],
-            "observation_hours": round(data["thermal_observation_hours"], 2),
-            "passive_segment_count": data["passive_segment_count"],
-            "heating_segment_count": data["heating_segment_count"],
-            "heating_confidence": data["heating_confidence"],
-        }
+        if self.entity_description.key in {
+            "usage_probability_next_6h",
+            "next_expected_usage",
+            "typical_usage_drop",
+            "usage_learning_confidence",
+        }:
+            return {
+                "usage_event_count": data["usage_event_count"],
+                "observed_days": data["usage_observed_days"],
+                "occupancy_state": data["occupancy_state"],
+            }
+
+        return None

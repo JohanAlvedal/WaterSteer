@@ -7,7 +7,13 @@ from datetime import timedelta
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import STATE_OFF, STATE_ON, UnitOfTemperature
+from homeassistant.const import (
+    STATE_OFF,
+    STATE_ON,
+    STATE_UNAVAILABLE,
+    STATE_UNKNOWN,
+    UnitOfTemperature,
+)
 from homeassistant.core import HomeAssistant, State
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
@@ -21,13 +27,16 @@ from .const import (
     CONF_ELECTRICITY_PRICE_ENTITY,
     CONF_HEAT_PUMP_DHW_ACTIVE_ENTITY,
     CONF_HEAT_PUMP_DHW_AVAILABLE_ENTITY,
+    CONF_MIN_THERMAL_CONFIDENCE,
     CONF_NORMAL_TARGET,
+    CONF_OCCUPANCY_ENTITY,
     CONF_PRECHARGE_TARGET,
     CONF_STANDALONE_CONTROL_SWITCH,
     CONF_STANDALONE_POWER_SENSOR,
     CONF_SYSTEM_TYPE,
     DEFAULT_ABSOLUTE_MINIMUM,
     DEFAULT_COMFORT_MINIMUM,
+    DEFAULT_MIN_THERMAL_CONFIDENCE,
     DEFAULT_NORMAL_TARGET,
     DEFAULT_PRECHARGE_TARGET,
     DEFAULT_UPDATE_INTERVAL,
@@ -35,8 +44,13 @@ from .const import (
     MODE_LEARNING,
     MODE_SAFETY,
 )
-from .controller import DhwThresholds, classify_dhw_temperature
+from .controller import (
+    DhwThresholds,
+    apply_thermal_confidence_guard,
+    classify_dhw_temperature,
+)
 from .thermal_model import DhwThermalModel
+from .usage_model import DhwUsageModel
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -89,8 +103,19 @@ def _binary_state_hint(state: State | None) -> bool | None:
     return None
 
 
+def _occupancy_hint(state: State | None) -> bool | None:
+    """Normalize an optional Home Assistant occupancy entity."""
+    if state is None or state.state in {STATE_UNKNOWN, STATE_UNAVAILABLE}:
+        return None
+    if state.domain in {"binary_sensor", "input_boolean"}:
+        return _binary_state_hint(state)
+    if state.domain == "person":
+        return state.state == "home"
+    return None
+
+
 class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
-    """Collect inputs and maintain WaterSteer's thermal learning model."""
+    """Collect inputs and maintain WaterSteer's learning models."""
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         """Initialize the WaterSteer coordinator."""
@@ -102,21 +127,30 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
         self.entry = entry
         self.thermal_model = DhwThermalModel()
-        self._store: Store[dict[str, Any]] = Store(
+        self.usage_model = DhwUsageModel()
+        self._thermal_store: Store[dict[str, Any]] = Store(
             hass,
             _STORAGE_VERSION,
             f"{DOMAIN}.{entry.entry_id}.thermal_model",
         )
+        self._usage_store: Store[dict[str, Any]] = Store(
+            hass,
+            _STORAGE_VERSION,
+            f"{DOMAIN}.{entry.entry_id}.usage_model",
+        )
         self._last_store_save = None
 
     async def async_initialize(self) -> None:
-        """Restore persisted thermal learning history."""
-        stored = await self._store.async_load()
-        self.thermal_model.restore(stored)
+        """Restore persisted learning history."""
+        thermal_data = await self._thermal_store.async_load()
+        usage_data = await self._usage_store.async_load()
+        self.thermal_model.restore(thermal_data)
+        self.usage_model.restore(usage_data)
 
     async def async_shutdown(self) -> None:
-        """Persist thermal history before the integration unloads."""
-        await self._store.async_save(self.thermal_model.as_dict())
+        """Persist learning history before the integration unloads."""
+        await self._thermal_store.async_save(self.thermal_model.as_dict())
+        await self._usage_store.async_save(self.usage_model.as_dict())
 
     def _config(self) -> dict[str, Any]:
         """Return effective configuration with options overriding setup data."""
@@ -127,9 +161,13 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         config = self._config()
         temperature_entity = config[CONF_DHW_TEMPERATURE_ENTITY]
         price_entity = config[CONF_ELECTRICITY_PRICE_ENTITY]
+        occupancy_entity = config.get(CONF_OCCUPANCY_ENTITY)
 
         temperature_state = self.hass.states.get(temperature_entity)
         price_state = self.hass.states.get(price_entity)
+        occupancy_state = (
+            self.hass.states.get(occupancy_entity) if occupancy_entity else None
+        )
 
         dhw_temperature = _temperature_celsius(temperature_state)
         electricity_price = _as_float(
@@ -148,7 +186,14 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 config.get(CONF_PRECHARGE_TARGET, DEFAULT_PRECHARGE_TARGET)
             ),
         )
-        decision = classify_dhw_temperature(dhw_temperature, thresholds)
+        minimum_thermal_confidence = int(
+            float(
+                config.get(
+                    CONF_MIN_THERMAL_CONFIDENCE,
+                    DEFAULT_MIN_THERMAL_CONFIDENCE,
+                )
+            )
+        )
 
         standalone_switch = config.get(CONF_STANDALONE_CONTROL_SWITCH)
         standalone_power_sensor = config.get(CONF_STANDALONE_POWER_SENSOR)
@@ -171,24 +216,46 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
 
         now = dt_util.utcnow()
-        observation_added = False
+        now_local = dt_util.as_local(now)
+        heating_hint = _binary_state_hint(dhw_active_state)
+        thermal_observation_added = False
+        usage_observation_added = False
+
         if dhw_temperature is not None:
-            observation_added = self.thermal_model.add_observation(
+            thermal_observation_added = self.thermal_model.add_observation(
                 now.timestamp(),
                 dhw_temperature,
-                _binary_state_hint(dhw_active_state),
+                heating_hint,
+            )
+            usage_observation_added = self.usage_model.add_observation(
+                timestamp=now.timestamp(),
+                temperature=dhw_temperature,
+                local_datetime=now_local,
+                heating_active=heating_hint,
             )
 
         thermal = self.thermal_model.estimate(
             dhw_temperature,
             thresholds.comfort_minimum,
         )
+        usage = self.usage_model.estimate(
+            now_local=now_local,
+            occupancy=_occupancy_hint(occupancy_state),
+        )
 
-        if observation_added and (
+        raw_decision = classify_dhw_temperature(dhw_temperature, thresholds)
+        decision = apply_thermal_confidence_guard(
+            raw_decision,
+            thermal_confidence=thermal.loss_confidence,
+            minimum_confidence=minimum_thermal_confidence,
+        )
+
+        if (thermal_observation_added or usage_observation_added) and (
             self._last_store_save is None
             or now - self._last_store_save >= _STORAGE_SAVE_INTERVAL
         ):
-            await self._store.async_save(self.thermal_model.as_dict())
+            await self._thermal_store.async_save(self.thermal_model.as_dict())
+            await self._usage_store.async_save(self.usage_model.as_dict())
             self._last_store_save = now
 
         data_valid = dhw_temperature is not None
@@ -201,6 +268,7 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "system_type": config[CONF_SYSTEM_TYPE],
             "decision": decision.classification,
             "decision_reason": decision.reason,
+            "raw_temperature_decision": raw_decision.classification,
             "dhw_allowed": decision.allowed,
             "dhw_request": decision.request,
             "force_request": decision.force_request,
@@ -208,6 +276,10 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "comfort_minimum": thresholds.comfort_minimum,
             "normal_target": thresholds.normal_target,
             "precharge_target": thresholds.precharge_target,
+            "minimum_thermal_confidence": minimum_thermal_confidence,
+            "braking_confidence_ready": (
+                thermal.loss_confidence >= minimum_thermal_confidence
+            ),
             "dhw_temperature": dhw_temperature,
             "dhw_temperature_source_unit": (
                 temperature_state.attributes.get("unit_of_measurement")
@@ -225,6 +297,15 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "thermal_observation_hours": thermal.observation_hours,
             "passive_segment_count": thermal.passive_segment_count,
             "heating_segment_count": thermal.heating_segment_count,
+            "usage_detected": usage.usage_detected,
+            "usage_probability_next_6h": usage.usage_probability_next_6h,
+            "next_expected_usage": usage.next_expected_usage,
+            "typical_usage_drop": usage.typical_usage_drop,
+            "usage_learning_confidence": usage.confidence,
+            "usage_event_count": usage.event_count,
+            "usage_observed_days": usage.observed_days,
+            "occupancy_state": usage.occupancy_state,
+            "occupancy_entity": occupancy_entity,
             "dhw_temperature_entity": temperature_entity,
             "electricity_price_entity": price_entity,
             "standalone_control_switch": standalone_switch,

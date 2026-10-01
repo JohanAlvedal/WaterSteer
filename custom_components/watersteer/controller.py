@@ -93,3 +93,22 @@ def classify_dhw_temperature(
         request=False,
         force_request=False,
     )
+
+
+def apply_thermal_confidence_guard(
+    decision: DhwDecision,
+    *,
+    thermal_confidence: int,
+    minimum_confidence: int,
+) -> DhwDecision:
+    """Prevent DHW braking until the thermal model is sufficiently trusted."""
+    if decision.allowed or thermal_confidence >= minimum_confidence:
+        return decision
+
+    return DhwDecision(
+        classification="learning_guard",
+        reason="thermal_confidence_below_minimum",
+        allowed=True,
+        request=False,
+        force_request=False,
+    )

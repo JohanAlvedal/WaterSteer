@@ -6,7 +6,9 @@ from custom_components.watersteer.const import (
     CONF_DHW_TEMPERATURE_ENTITY,
     CONF_ELECTRICITY_PRICE_ENTITY,
     CONF_HEAT_PUMP_DHW_AVAILABLE_ENTITY,
+    CONF_MIN_THERMAL_CONFIDENCE,
     CONF_NORMAL_TARGET,
+    CONF_OCCUPANCY_ENTITY,
     CONF_PRECHARGE_TARGET,
     CONF_STANDALONE_CONTROL_SWITCH,
     CONF_SYSTEM_TYPE,
@@ -23,6 +25,7 @@ THRESHOLDS = {
     CONF_COMFORT_MINIMUM: 45.0,
     CONF_NORMAL_TARGET: 50.0,
     CONF_PRECHARGE_TARGET: 55.0,
+    CONF_MIN_THERMAL_CONFIDENCE: 50,
 }
 
 
@@ -41,6 +44,7 @@ async def test_standalone_config_flow(hass) -> None:
         {
             CONF_DHW_TEMPERATURE_ENTITY: "sensor.dhw_temperature",
             CONF_ELECTRICITY_PRICE_ENTITY: "sensor.electricity_price",
+            CONF_OCCUPANCY_ENTITY: "binary_sensor.home_occupied",
         },
     )
     assert result["step_id"] == "thresholds"
@@ -57,6 +61,8 @@ async def test_standalone_config_flow(hass) -> None:
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["data"][CONF_NORMAL_TARGET] == 50.0
+    assert result["data"][CONF_MIN_THERMAL_CONFIDENCE] == 50
+    assert result["data"][CONF_OCCUPANCY_ENTITY] == "binary_sensor.home_occupied"
 
 
 async def test_heat_pump_config_flow_without_active_signal(hass) -> None:

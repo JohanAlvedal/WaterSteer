@@ -34,13 +34,16 @@ from .const import (
     CONF_HEAT_PUMP_DHW_ACTIVE_ENTITY,
     CONF_HEAT_PUMP_DHW_AVAILABLE_ENTITY,
     CONF_HEAT_PUMP_NORMAL_ACTION,
+    CONF_MIN_THERMAL_CONFIDENCE,
     CONF_NORMAL_TARGET,
+    CONF_OCCUPANCY_ENTITY,
     CONF_PRECHARGE_TARGET,
     CONF_STANDALONE_CONTROL_SWITCH,
     CONF_STANDALONE_POWER_SENSOR,
     CONF_SYSTEM_TYPE,
     DEFAULT_ABSOLUTE_MINIMUM,
     DEFAULT_COMFORT_MINIMUM,
+    DEFAULT_MIN_THERMAL_CONFIDENCE,
     DEFAULT_NORMAL_TARGET,
     DEFAULT_PRECHARGE_TARGET,
     DOMAIN,
@@ -79,6 +82,11 @@ def _primary_schema() -> vol.Schema:
             vol.Required(CONF_ELECTRICITY_PRICE_ENTITY): EntitySelector(
                 EntitySelectorConfig(domain="sensor")
             ),
+            vol.Optional(CONF_OCCUPANCY_ENTITY): EntitySelector(
+                EntitySelectorConfig(
+                    domain=["binary_sensor", "input_boolean", "person"]
+                )
+            ),
         }
     )
 
@@ -92,6 +100,15 @@ def _threshold_schema() -> vol.Schema:
             step=0.5,
             mode=NumberSelectorMode.BOX,
             unit_of_measurement="°C",
+        )
+    )
+    confidence_selector = NumberSelector(
+        NumberSelectorConfig(
+            min=10,
+            max=100,
+            step=5,
+            mode=NumberSelectorMode.BOX,
+            unit_of_measurement="%",
         )
     )
     return vol.Schema(
@@ -112,6 +129,10 @@ def _threshold_schema() -> vol.Schema:
                 CONF_PRECHARGE_TARGET,
                 default=DEFAULT_PRECHARGE_TARGET,
             ): selector,
+            vol.Required(
+                CONF_MIN_THERMAL_CONFIDENCE,
+                default=DEFAULT_MIN_THERMAL_CONFIDENCE,
+            ): confidence_selector,
         }
     )
 
@@ -219,6 +240,11 @@ class WaterSteerConfigFlow(ConfigFlow, domain=DOMAIN):
                     vol.Required(CONF_ELECTRICITY_PRICE_ENTITY): EntitySelector(
                         EntitySelectorConfig(domain="sensor")
                     ),
+                    vol.Optional(CONF_OCCUPANCY_ENTITY): EntitySelector(
+                        EntitySelectorConfig(
+                            domain=["binary_sensor", "input_boolean", "person"]
+                        )
+                    ),
                 }
             ),
         )
@@ -303,6 +329,12 @@ class WaterSteerOptionsFlow(OptionsFlowWithReload):
             ),
             CONF_PRECHARGE_TARGET: float(
                 current.get(CONF_PRECHARGE_TARGET, DEFAULT_PRECHARGE_TARGET)
+            ),
+            CONF_MIN_THERMAL_CONFIDENCE: float(
+                current.get(
+                    CONF_MIN_THERMAL_CONFIDENCE,
+                    DEFAULT_MIN_THERMAL_CONFIDENCE,
+                )
             ),
         }
 

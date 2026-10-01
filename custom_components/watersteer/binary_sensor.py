@@ -42,6 +42,11 @@ BINARY_SENSORS: tuple[WaterSteerBinarySensorDescription, ...] = (
         translation_key="force_request",
         data_key="force_request",
     ),
+    WaterSteerBinarySensorDescription(
+        key="usage_detected",
+        translation_key="usage_detected",
+        data_key="usage_detected",
+    ),
 )
 
 
@@ -61,7 +66,7 @@ async def async_setup_entry(
 class WaterSteerDecisionBinarySensor(
     CoordinatorEntity[WaterSteerDataUpdateCoordinator], BinarySensorEntity
 ):
-    """Represent one WaterSteer shadow-control boolean."""
+    """Represent one WaterSteer decision or learning boolean."""
 
     _attr_has_entity_name = True
 
@@ -71,7 +76,7 @@ class WaterSteerDecisionBinarySensor(
         entry: ConfigEntry,
         description: WaterSteerBinarySensorDescription,
     ) -> None:
-        """Initialize a WaterSteer decision binary sensor."""
+        """Initialize a WaterSteer binary sensor."""
         super().__init__(coordinator)
         self.entity_description = description
         self._attr_unique_id = f"{entry.entry_id}_{description.key}"
@@ -84,17 +89,18 @@ class WaterSteerDecisionBinarySensor(
 
     @property
     def is_on(self) -> bool:
-        """Return the current decision boolean."""
+        """Return the current boolean state."""
         return bool(self.coordinator.data[self.entity_description.data_key])
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        """Return decision details useful for diagnostics."""
+        """Return decision and learning details useful for diagnostics."""
         data = self.coordinator.data
         return {
             "shadow_mode": data["shadow_mode"],
             "decision": data["decision"],
             "reason": data["decision_reason"],
+            "raw_temperature_decision": data["raw_temperature_decision"],
             "mode": data["mode"],
             "system_type": data["system_type"],
             "current_temperature": data["dhw_temperature"],
@@ -102,6 +108,12 @@ class WaterSteerDecisionBinarySensor(
             "comfort_minimum": data["comfort_minimum"],
             "normal_target": data["normal_target"],
             "precharge_target": data["precharge_target"],
+            "thermal_learning_confidence": data["learning_confidence"],
+            "minimum_thermal_confidence": data["minimum_thermal_confidence"],
+            "braking_confidence_ready": data["braking_confidence_ready"],
+            "usage_probability_next_6h": data["usage_probability_next_6h"],
+            "usage_learning_confidence": data["usage_learning_confidence"],
+            "occupancy_state": data["occupancy_state"],
             "electricity_price": data["electricity_price"],
             "dhw_allowed": data["dhw_allowed"],
             "dhw_request": data["dhw_request"],

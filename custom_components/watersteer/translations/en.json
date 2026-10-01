@@ -17,11 +17,13 @@
         "description": "Select the Home Assistant entities WaterSteer will use as its primary inputs.",
         "data": {
           "dhw_temperature_entity": "DHW temperature sensor",
-          "electricity_price_entity": "Electricity price sensor"
+          "electricity_price_entity": "Electricity price sensor",
+          "occupancy_entity": "Occupancy entity"
         },
         "data_description": {
           "dhw_temperature_entity": "Sensor that represents the current domestic hot water temperature.",
-          "electricity_price_entity": "Sensor that represents the current electricity price. Future price data will be added by the price planner."
+          "electricity_price_entity": "Sensor that represents the current electricity price. Future price data will be added by the price planner.",
+          "occupancy_entity": "Optional binary sensor, input boolean, or person entity used only to refine learned DHW demand. WaterSteer also works without occupancy data."
         }
       },
       "thresholds": {
@@ -31,13 +33,15 @@
           "absolute_minimum": "Absolute minimum",
           "comfort_minimum": "Comfort minimum",
           "normal_target": "Normal target",
-          "precharge_target": "Precharge target"
+          "precharge_target": "Precharge target",
+          "min_thermal_confidence": "Minimum thermal confidence for braking"
         },
         "data_description": {
           "absolute_minimum": "At or below this temperature WaterSteer requests immediate forced heating.",
           "comfort_minimum": "Below this temperature WaterSteer requests comfort recovery even if electricity is expensive.",
           "normal_target": "At or above this temperature the shadow classifier considers stored hot water sufficient and would hold normal DHW heating.",
-          "precharge_target": "Upper target reserved for future price-based precharging. Cheap electricity alone will never be enough to trigger heating."
+          "precharge_target": "Upper target reserved for future price-based precharging. Cheap electricity alone will never be enough to trigger heating.",
+          "min_thermal_confidence": "WaterSteer will not hold or block normal DHW production until thermal learning confidence reaches this percentage. Default: 50%."
         }
       },
       "standalone_control": {
@@ -83,12 +87,14 @@
         "data": {
           "system_type": "System type",
           "dhw_temperature_entity": "DHW temperature sensor",
-          "electricity_price_entity": "Electricity price sensor"
+          "electricity_price_entity": "Electricity price sensor",
+          "occupancy_entity": "Occupancy entity"
         },
         "data_description": {
           "system_type": "Choose a standalone water heater or a heat pump with integrated domestic hot water.",
           "dhw_temperature_entity": "Sensor that represents the current domestic hot water temperature.",
-          "electricity_price_entity": "Sensor that represents the current electricity price."
+          "electricity_price_entity": "Sensor that represents the current electricity price.",
+          "occupancy_entity": "Optional binary sensor, input boolean, or person entity used only to refine learned DHW demand."
         }
       },
       "thresholds": {
@@ -98,13 +104,15 @@
           "absolute_minimum": "Absolute minimum",
           "comfort_minimum": "Comfort minimum",
           "normal_target": "Normal target",
-          "precharge_target": "Precharge target"
+          "precharge_target": "Precharge target",
+          "min_thermal_confidence": "Minimum thermal confidence for braking"
         },
         "data_description": {
           "absolute_minimum": "At or below this temperature WaterSteer requests immediate forced heating.",
           "comfort_minimum": "Below this temperature WaterSteer requests comfort recovery.",
           "normal_target": "At or above this temperature WaterSteer would hold normal DHW heating.",
-          "precharge_target": "Upper target reserved for future price-based precharging."
+          "precharge_target": "Upper target reserved for future price-based precharging.",
+          "min_thermal_confidence": "WaterSteer will not hold or block normal DHW production until thermal learning confidence reaches this percentage. Default: 50%."
         }
       },
       "standalone_control": {
@@ -175,6 +183,18 @@
       },
       "learning_confidence": {
         "name": "Thermal learning confidence"
+      },
+      "usage_probability_next_6h": {
+        "name": "DHW usage probability next 6 hours"
+      },
+      "next_expected_usage": {
+        "name": "Next expected DHW usage"
+      },
+      "typical_usage_drop": {
+        "name": "Typical DHW usage drop"
+      },
+      "usage_learning_confidence": {
+        "name": "Usage learning confidence"
       }
     },
     "binary_sensor": {
@@ -186,6 +206,9 @@
       },
       "force_request": {
         "name": "Force request"
+      },
+      "usage_detected": {
+        "name": "DHW usage detected"
       }
     }
   }
