@@ -1,11 +1,12 @@
 """Tests for WaterSteer DHW decision logic."""
 
-import pytest
-
 from custom_components.watersteer.controller import (
+
     DhwThresholds,
     classify_dhw_temperature,
 )
+
+import pytest
 
 
 @pytest.fixture
