@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import logging
+from datetime import timedelta
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfTemperature
+from homeassistant.const import STATE_OFF, STATE_ON, UnitOfTemperature
 from homeassistant.core import HomeAssistant, State
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+from homeassistant.util import dt as dt_util
 from homeassistant.util.unit_conversion import TemperatureConverter
 
 from .const import (
@@ -33,8 +36,12 @@ from .const import (
     MODE_SAFETY,
 )
 from .controller import DhwThresholds, classify_dhw_temperature
+from .thermal_model import DhwThermalModel
 
 _LOGGER = logging.getLogger(__name__)
+
+_STORAGE_VERSION = 1
+_STORAGE_SAVE_INTERVAL = timedelta(minutes=15)
 
 
 def _as_float(value: str | None) -> float | None:
@@ -71,8 +78,19 @@ def _temperature_celsius(state: State | None) -> float | None:
         return None
 
 
+def _binary_state_hint(state: State | None) -> bool | None:
+    """Return an optional boolean hint from a binary-style state."""
+    if state is None:
+        return None
+    if state.state == STATE_ON:
+        return True
+    if state.state == STATE_OFF:
+        return False
+    return None
+
+
 class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
-    """Collect and normalize WaterSteer input data."""
+    """Collect inputs and maintain WaterSteer's thermal learning model."""
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         """Initialize the WaterSteer coordinator."""
@@ -83,13 +101,29 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             update_interval=DEFAULT_UPDATE_INTERVAL,
         )
         self.entry = entry
+        self.thermal_model = DhwThermalModel()
+        self._store: Store[dict[str, Any]] = Store(
+            hass,
+            _STORAGE_VERSION,
+            f"{DOMAIN}.{entry.entry_id}.thermal_model",
+        )
+        self._last_store_save = None
+
+    async def async_initialize(self) -> None:
+        """Restore persisted thermal learning history."""
+        stored = await self._store.async_load()
+        self.thermal_model.restore(stored)
+
+    async def async_shutdown(self) -> None:
+        """Persist thermal history before the integration unloads."""
+        await self._store.async_save(self.thermal_model.as_dict())
 
     def _config(self) -> dict[str, Any]:
         """Return effective configuration with options overriding setup data."""
         return {**self.entry.data, **self.entry.options}
 
     async def _async_update_data(self) -> dict[str, Any]:
-        """Read WaterSteer inputs and calculate a shadow-control decision."""
+        """Read inputs, update learning, and calculate shadow decisions."""
         config = self._config()
         temperature_entity = config[CONF_DHW_TEMPERATURE_ENTITY]
         price_entity = config[CONF_ELECTRICITY_PRICE_ENTITY]
@@ -136,6 +170,27 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self.hass.states.get(dhw_available_entity) if dhw_available_entity else None
         )
 
+        now = dt_util.utcnow()
+        observation_added = False
+        if dhw_temperature is not None:
+            observation_added = self.thermal_model.add_observation(
+                now.timestamp(),
+                dhw_temperature,
+                _binary_state_hint(dhw_active_state),
+            )
+
+        thermal = self.thermal_model.estimate(
+            dhw_temperature,
+            thresholds.comfort_minimum,
+        )
+
+        if observation_added and (
+            self._last_store_save is None
+            or now - self._last_store_save >= _STORAGE_SAVE_INTERVAL
+        ):
+            await self._store.async_save(self.thermal_model.as_dict())
+            self._last_store_save = now
+
         data_valid = dhw_temperature is not None
         mode = MODE_LEARNING if data_valid and thresholds.valid else MODE_SAFETY
 
@@ -160,6 +215,16 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 else None
             ),
             "electricity_price": electricity_price,
+            "standby_loss": thermal.standby_loss_c_per_hour,
+            "heating_rate": thermal.heating_rate_c_per_hour,
+            "projected_temperature_1h": thermal.projected_temperature_1h,
+            "minutes_to_comfort": thermal.minutes_to_comfort,
+            "learning_confidence": thermal.loss_confidence,
+            "heating_confidence": thermal.heating_confidence,
+            "thermal_observation_count": thermal.observation_count,
+            "thermal_observation_hours": thermal.observation_hours,
+            "passive_segment_count": thermal.passive_segment_count,
+            "heating_segment_count": thermal.heating_segment_count,
             "dhw_temperature_entity": temperature_entity,
             "electricity_price_entity": price_entity,
             "standalone_control_switch": standalone_switch,

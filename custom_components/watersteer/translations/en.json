@@ -160,6 +160,21 @@
       },
       "dhw_temperature": {
         "name": "DHW temperature"
+      },
+      "standby_loss": {
+        "name": "Standby heat loss"
+      },
+      "heating_rate": {
+        "name": "Heating rate"
+      },
+      "projected_temperature_1h": {
+        "name": "Projected temperature in 1 hour"
+      },
+      "time_to_comfort": {
+        "name": "Estimated time to comfort minimum"
+      },
+      "learning_confidence": {
+        "name": "Thermal learning confidence"
       }
     },
     "binary_sensor": {
