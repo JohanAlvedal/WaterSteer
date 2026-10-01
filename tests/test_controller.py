@@ -1,12 +1,11 @@
 """Tests for WaterSteer DHW decision logic."""
 
-from custom_components.watersteer.controller import (
+import pytest
 
+from custom_components.watersteer.controller import (
     DhwThresholds,
     classify_dhw_temperature,
 )
-
-import pytest
 
 
 @pytest.fixture
@@ -21,7 +20,13 @@ def thresholds() -> DhwThresholds:
 
 
 @pytest.mark.parametrize(
-    ("temperature", "classification", "allowed", "request", "force_request"),
+    (
+        "temperature",
+        "classification",
+        "allowed",
+        "request_expected",
+        "force_request_expected",
+    ),
     [
         (39.0, "force_heat", True, True, True),
         (40.0, "force_heat", True, True, True),
@@ -37,16 +42,16 @@ def test_temperature_classification(
     temperature: float,
     classification: str,
     allowed: bool,
-    request: bool,
-    force_request: bool,
+    request_expected: bool,
+    force_request_expected: bool,
 ) -> None:
     """Temperature bands produce deterministic shadow decisions."""
     decision = classify_dhw_temperature(temperature, thresholds)
 
     assert decision.classification == classification
     assert decision.allowed is allowed
-    assert decision.request is request
-    assert decision.force_request is force_request
+    assert decision.request is request_expected
+    assert decision.force_request is force_request_expected
 
 
 def test_missing_temperature_fails_safe(thresholds: DhwThresholds) -> None:
