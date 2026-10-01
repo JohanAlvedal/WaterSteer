@@ -1,0 +1,12 @@
+{
+  "domain": "watersteer",
+  "name": "WaterSteer",
+  "codeowners": ["@JohanAlvedal"],
+  "config_flow": true,
+  "documentation": "https://github.com/JohanAlvedal/WaterSteer",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/JohanAlvedal/WaterSteer/issues",
+  "requirements": [],
+  "single_config_entry": true,
+  "version": "0.1.0"
+}
