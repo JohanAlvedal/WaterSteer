@@ -110,9 +110,7 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self.hass.states.get(dhw_active_entity) if dhw_active_entity else None
         )
         dhw_available_state = (
-            self.hass.states.get(dhw_available_entity)
-            if dhw_available_entity
-            else None
+            self.hass.states.get(dhw_available_entity) if dhw_available_entity else None
         )
 
         data_valid = dhw_temperature is not None
@@ -156,8 +154,6 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             ),
             "heat_pump_dhw_available_entity": dhw_available_entity,
             "heat_pump_dhw_available_state": (
-                dhw_available_state.state
-                if dhw_available_state is not None
-                else None
+                dhw_available_state.state if dhw_available_state is not None else None
             ),
         }
