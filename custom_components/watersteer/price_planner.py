@@ -295,11 +295,7 @@ def _parse_dated_items(items: list[Any]) -> list[PriceSlot]:
             or item.get("from")
             or item.get("time")
         )
-        end = _as_datetime(
-            item.get("end")
-            or item.get("end_time")
-            or item.get("to")
-        )
+        end = _as_datetime(item.get("end") or item.get("end_time") or item.get("to"))
         price = _as_price(
             item.get("value")
             if "value" in item
@@ -368,7 +364,7 @@ def _as_price(value: Any) -> float | None:
     """Return a finite numeric price value."""
     try:
         parsed = float(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
     if parsed != parsed or parsed in {float("inf"), float("-inf")}:
         return None
