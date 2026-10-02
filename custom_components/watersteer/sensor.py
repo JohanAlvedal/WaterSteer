@@ -91,6 +91,40 @@ SENSORS: tuple[WaterSteerSensorEntityDescription, ...] = (
         value_fn=lambda data: data["learning_confidence"],
     ),
     WaterSteerSensorEntityDescription(
+        key="passive_autonomy",
+        translation_key="passive_autonomy",
+        device_class=SensorDeviceClass.DURATION,
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+        value_fn=lambda data: data["passive_autonomy_minutes"],
+    ),
+    WaterSteerSensorEntityDescription(
+        key="predicted_autonomy",
+        translation_key="predicted_autonomy",
+        device_class=SensorDeviceClass.DURATION,
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+        value_fn=lambda data: data["predicted_autonomy_minutes"],
+    ),
+    WaterSteerSensorEntityDescription(
+        key="predicted_temperature_6h",
+        translation_key="predicted_temperature_6h",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        value_fn=lambda data: data["predicted_temperature_6h"],
+    ),
+    WaterSteerSensorEntityDescription(
+        key="autonomy_confidence",
+        translation_key="autonomy_confidence",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda data: data["autonomy_confidence"],
+    ),
+    WaterSteerSensorEntityDescription(
         key="usage_probability_next_6h",
         translation_key="usage_probability_next_6h",
         native_unit_of_measurement=PERCENTAGE,
@@ -186,6 +220,10 @@ class WaterSteerSensor(
             "heating_rate",
             "time_to_comfort",
             "learning_confidence",
+            "passive_autonomy",
+            "predicted_autonomy",
+            "predicted_temperature_6h",
+            "autonomy_confidence",
         }:
             return {
                 "observation_count": data["thermal_observation_count"],
@@ -195,6 +233,9 @@ class WaterSteerSensor(
                 "heating_confidence": data["heating_confidence"],
                 "minimum_braking_confidence": data["minimum_thermal_confidence"],
                 "braking_confidence_ready": data["braking_confidence_ready"],
+                "autonomy_basis": data["autonomy_basis"],
+                "demand_adjusted": data["autonomy_demand_adjusted"],
+                "usage_learning_confidence": data["usage_learning_confidence"],
             }
 
         if self.entity_description.key in {
