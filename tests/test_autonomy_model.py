@@ -2,10 +2,9 @@
 
 from datetime import UTC, datetime
 
-import pytest
-
 from custom_components.watersteer.autonomy_model import estimate_autonomy
 from custom_components.watersteer.usage_model import UsageForecastBucket
+import pytest
 
 
 def _bucket(hour: int, expected_drop_c: float) -> UsageForecastBucket:
