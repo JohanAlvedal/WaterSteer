@@ -58,6 +58,22 @@ The model samples at a controlled interval and ignores temperature changes that 
 
 Thermal history survives Home Assistant restarts.
 
+### Predicted autonomy
+
+WaterSteer now calculates DHW autonomy in shadow mode.
+
+It exposes both:
+
+- passive autonomy based only on current temperature and learned standby loss
+- predicted autonomy adjusted by the learned six-hour demand forecast
+- predicted DHW temperature after six hours
+- autonomy confidence
+- the model basis used for the current prediction
+
+Demand adjustment is deliberately gated. If usage-learning confidence is below 20%, WaterSteer falls back to `thermal_only` autonomy instead of pretending that an immature demand profile is reliable.
+
+The autonomy model is analytics only. It does not issue Block, Normal, or Boost commands.
+
 ### Usage learning
 
 WaterSteer also learns explainable DHW usage patterns.
@@ -146,6 +162,10 @@ sensor.watersteer_heating_rate
 sensor.watersteer_projected_temperature_in_1_hour
 sensor.watersteer_estimated_time_to_comfort_minimum
 sensor.watersteer_thermal_learning_confidence
+sensor.watersteer_passive_dhw_autonomy
+sensor.watersteer_predicted_dhw_autonomy
+sensor.watersteer_predicted_dhw_temperature_in_6_hours
+sensor.watersteer_dhw_autonomy_confidence
 
 sensor.watersteer_dhw_usage_probability_next_6_hours
 sensor.watersteer_expected_dhw_usage_impact_next_6_hours
@@ -191,6 +211,9 @@ thermal_model.py
 
 usage_model.py
   -> DHW draw detection and weekday/weekend demand learning
+
+autonomy_model.py
+  -> passive and demand-adjusted time-to-comfort prediction
 
 controller.py
   -> deterministic temperature decisions and safety guards
