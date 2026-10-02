@@ -255,9 +255,7 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         price_slots = extract_price_slots(
             now=now_local,
             attributes=(
-                dict(price_state.attributes)
-                if price_state is not None
-                else {}
+                dict(price_state.attributes) if price_state is not None else {}
             ),
         )
         price_plan = plan_price_window(
@@ -321,9 +319,7 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "price_plan_reason": price_plan.reason,
             "price_plan_next_charge": price_plan.next_charge,
             "price_plan_charge_end": price_plan.charge_end,
-            "price_plan_expected_charge_minutes": (
-                price_plan.expected_charge_minutes
-            ),
+            "price_plan_expected_charge_minutes": (price_plan.expected_charge_minutes),
             "price_plan_target": price_plan.planned_target,
             "price_plan_selected_price": price_plan.selected_price,
             "price_plan_savings_vs_current": price_plan.savings_vs_current,
