@@ -3,7 +3,6 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
-
 from custom_components.watersteer.price_planner import (
     PriceSlot,
     extract_price_slots,
