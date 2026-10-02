@@ -10,14 +10,20 @@ from typing import Any
 
 MIN_SAMPLE_INTERVAL_SECONDS = 300
 MAX_HISTORY_DAYS = 42
-MAX_EVENT_DURATION_SECONDS = 30 * 60
+MAX_EVENT_SEGMENT_SECONDS = 30 * 60
 USAGE_DROP_MIN_C = 1.5
 USAGE_DROP_RATE_MIN_C_PER_HOUR = 3.0
-EVENT_COOLDOWN_SECONDS = 45 * 60
+EVENT_GROUP_GAP_SECONDS = 20 * 60
 RECENT_USAGE_SECONDS = 20 * 60
 PROFILE_HORIZON_HOURS = 6
 EXPECTED_USAGE_PROBABILITY = 0.30
 AWAY_PROBABILITY_FACTOR = 0.25
+
+SMALL_DRAW_MAX_C = 3.0
+LARGE_DRAW_MIN_C = 6.0
+
+WEEKDAY_CONFIDENCE_DAYS = 15
+WEEKEND_CONFIDENCE_DAYS = 6
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,37 +40,58 @@ class UsageSample:
 
 @dataclass(frozen=True, slots=True)
 class UsageEvent:
-    """One inferred DHW usage event."""
+    """One inferred and grouped DHW usage event."""
 
     timestamp: float
+    end_timestamp: float
     day_type: str
     hour: int
     date_key: str
     drop_c: float
+    draw_size: str
+
+
+@dataclass(frozen=True, slots=True)
+class UsageForecastBucket:
+    """One hourly bucket in the near-term demand forecast."""
+
+    start: datetime
+    probability: float
+    typical_drop_c: float | None
+    expected_drop_c: float
 
 
 @dataclass(frozen=True, slots=True)
 class UsageEstimate:
-    """Current usage-learning result."""
+    """Current usage-learning and demand-forecast result."""
 
     usage_detected: bool
     usage_probability_next_6h: float
+    expected_usage_drop_next_6h: float
     next_expected_usage: datetime | None
+    next_expected_usage_probability: float | None
+    next_expected_usage_drop: float | None
+    demand_level: str
     typical_usage_drop: float | None
     confidence: int
     event_count: int
     observed_days: int
+    relevant_observed_days: int
+    small_event_count: int
+    medium_event_count: int
+    large_event_count: int
     occupancy_state: str
+    profile_day_type: str
+    forecast: tuple[UsageForecastBucket, ...]
 
 
 class DhwUsageModel:
-    """Learn weekday/weekend and time-of-day DHW usage patterns."""
+    """Learn explainable weekday/weekend and time-of-day DHW demand."""
 
     def __init__(self) -> None:
         """Initialize an empty usage model."""
         self._samples: list[UsageSample] = []
         self._events: list[UsageEvent] = []
-        self._last_event_timestamp: float | None = None
 
     def add_observation(
         self,
@@ -74,7 +101,7 @@ class DhwUsageModel:
         local_datetime: datetime,
         heating_active: bool | None,
     ) -> bool:
-        """Sample temperature and infer large usage drops."""
+        """Sample temperature and infer grouped DHW usage events."""
         if self._samples:
             last = self._samples[-1]
             if timestamp <= last.timestamp:
@@ -92,16 +119,20 @@ class DhwUsageModel:
         )
 
         if self._samples:
-            self._detect_usage_event(self._samples[-1], sample)
+            self._detect_usage_segment(self._samples[-1], sample)
 
         self._samples.append(sample)
         self._purge_old(timestamp)
         return True
 
-    def _detect_usage_event(self, previous: UsageSample, current: UsageSample) -> None:
-        """Infer a DHW draw from a rapid temperature drop."""
+    def _detect_usage_segment(
+        self,
+        previous: UsageSample,
+        current: UsageSample,
+    ) -> None:
+        """Infer a draw segment and merge consecutive segments into one event."""
         elapsed_seconds = current.timestamp - previous.timestamp
-        if not 0 < elapsed_seconds <= MAX_EVENT_DURATION_SECONDS:
+        if not 0 < elapsed_seconds <= MAX_EVENT_SEGMENT_SECONDS:
             return
         if previous.heating_active is True or current.heating_active is True:
             return
@@ -114,22 +145,35 @@ class DhwUsageModel:
         if drop_rate < USAGE_DROP_RATE_MIN_C_PER_HOUR:
             return
 
-        if (
-            self._last_event_timestamp is not None
-            and current.timestamp - self._last_event_timestamp < EVENT_COOLDOWN_SECONDS
-        ):
-            return
+        if self._events:
+            last_event = self._events[-1]
+            if (
+                current.timestamp - last_event.end_timestamp <= EVENT_GROUP_GAP_SECONDS
+                and current.date_key == last_event.date_key
+            ):
+                combined_drop = last_event.drop_c + drop_c
+                self._events[-1] = UsageEvent(
+                    timestamp=last_event.timestamp,
+                    end_timestamp=current.timestamp,
+                    day_type=last_event.day_type,
+                    hour=last_event.hour,
+                    date_key=last_event.date_key,
+                    drop_c=combined_drop,
+                    draw_size=self._draw_size(combined_drop),
+                )
+                return
 
         self._events.append(
             UsageEvent(
                 timestamp=current.timestamp,
+                end_timestamp=current.timestamp,
                 day_type=current.day_type,
                 hour=current.hour,
                 date_key=current.date_key,
                 drop_c=drop_c,
+                draw_size=self._draw_size(drop_c),
             )
         )
-        self._last_event_timestamp = current.timestamp
 
     def estimate(
         self,
@@ -137,51 +181,96 @@ class DhwUsageModel:
         now_local: datetime,
         occupancy: bool | None,
     ) -> UsageEstimate:
-        """Estimate near-term usage from learned weekday/weekend profiles."""
+        """Estimate near-term demand from learned day-type/hour profiles."""
         observed_days = len({sample.date_key for sample in self._samples})
-        confidence = min(100, round(observed_days / 30 * 100))
+        profile_day_type = self._day_type(now_local)
+        relevant_observed_days = self._observed_days_for_type(profile_day_type)
+        confidence = self._confidence(profile_day_type, relevant_observed_days)
 
-        probabilities: list[float] = []
+        forecast: list[UsageForecastBucket] = []
         expected_usage: datetime | None = None
+        expected_usage_probability: float | None = None
+        expected_usage_drop: float | None = None
 
         for offset in range(PROFILE_HORIZON_HOURS):
             target = now_local + timedelta(hours=offset)
-            probability = self._bucket_probability(
-                self._day_type(target),
-                target.hour,
+            day_type = self._day_type(target)
+            hour = target.hour
+            probability = self._apply_occupancy(
+                self._bucket_probability(day_type, hour),
+                occupancy,
             )
-            probability = self._apply_occupancy(probability, occupancy)
-            probabilities.append(probability)
+            typical_drop = self._bucket_typical_drop(day_type, hour)
+            expected_drop = probability * (typical_drop or 0.0)
+            bucket_start = target.replace(minute=0, second=0, microsecond=0)
+
+            forecast.append(
+                UsageForecastBucket(
+                    start=bucket_start,
+                    probability=probability,
+                    typical_drop_c=typical_drop,
+                    expected_drop_c=expected_drop,
+                )
+            )
 
             if (
                 expected_usage is None
                 and confidence >= 10
                 and probability >= EXPECTED_USAGE_PROBABILITY
             ):
-                expected_usage = target.replace(minute=0, second=0, microsecond=0)
+                expected_usage = bucket_start
+                expected_usage_probability = probability
+                expected_usage_drop = typical_drop
 
         combined_probability = 0.0
-        if probabilities:
-            combined_probability = 1.0 - prod(1.0 - value for value in probabilities)
+        if forecast:
+            combined_probability = 1.0 - prod(
+                1.0 - bucket.probability for bucket in forecast
+            )
 
+        expected_drop_next_6h = sum(bucket.expected_drop_c for bucket in forecast)
         latest_event = self._events[-1] if self._events else None
         usage_detected = bool(
             latest_event
-            and now_local.timestamp() - latest_event.timestamp <= RECENT_USAGE_SECONDS
+            and now_local.timestamp() - latest_event.end_timestamp
+            <= RECENT_USAGE_SECONDS
         )
         typical_drop = (
             median(event.drop_c for event in self._events) if self._events else None
         )
 
+        size_counts = {
+            "small": sum(event.draw_size == "small" for event in self._events),
+            "medium": sum(event.draw_size == "medium" for event in self._events),
+            "large": sum(event.draw_size == "large" for event in self._events),
+        }
+
         return UsageEstimate(
             usage_detected=usage_detected,
             usage_probability_next_6h=combined_probability * 100,
+            expected_usage_drop_next_6h=expected_drop_next_6h,
             next_expected_usage=expected_usage,
+            next_expected_usage_probability=(
+                expected_usage_probability * 100
+                if expected_usage_probability is not None
+                else None
+            ),
+            next_expected_usage_drop=expected_usage_drop,
+            demand_level=self._demand_level(
+                combined_probability,
+                expected_drop_next_6h,
+            ),
             typical_usage_drop=typical_drop,
             confidence=confidence,
             event_count=len(self._events),
             observed_days=observed_days,
+            relevant_observed_days=relevant_observed_days,
+            small_event_count=size_counts["small"],
+            medium_event_count=size_counts["medium"],
+            large_event_count=size_counts["large"],
             occupancy_state=self._occupancy_state(occupancy),
+            profile_day_type=profile_day_type,
+            forecast=tuple(forecast),
         )
 
     def _bucket_probability(self, day_type: str, hour: int) -> float:
@@ -200,6 +289,53 @@ class DhwUsageModel:
             if event.day_type == day_type and event.hour == hour
         }
         return min(1.0, len(event_days) / len(exposure_days))
+
+    def _bucket_typical_drop(self, day_type: str, hour: int) -> float | None:
+        """Return the median learned event size for one profile bucket."""
+        drops = [
+            event.drop_c
+            for event in self._events
+            if event.day_type == day_type and event.hour == hour
+        ]
+        return median(drops) if drops else None
+
+    def _observed_days_for_type(self, day_type: str) -> int:
+        """Return distinct observed dates for the selected day type."""
+        return len(
+            {
+                sample.date_key
+                for sample in self._samples
+                if sample.day_type == day_type
+            }
+        )
+
+    @staticmethod
+    def _confidence(day_type: str, observed_days: int) -> int:
+        """Return confidence based on repeated exposure to the relevant day type."""
+        required_days = (
+            WEEKEND_CONFIDENCE_DAYS
+            if day_type == "weekend"
+            else WEEKDAY_CONFIDENCE_DAYS
+        )
+        return min(100, round(observed_days / required_days * 100))
+
+    @staticmethod
+    def _draw_size(drop_c: float) -> str:
+        """Classify the relative thermal impact of one inferred draw."""
+        if drop_c < SMALL_DRAW_MAX_C:
+            return "small"
+        if drop_c >= LARGE_DRAW_MIN_C:
+            return "large"
+        return "medium"
+
+    @staticmethod
+    def _demand_level(probability: float, expected_drop_c: float) -> str:
+        """Return a simple explainable near-term demand level."""
+        if probability >= 0.70 or expected_drop_c >= 4.0:
+            return "high"
+        if probability >= 0.35 or expected_drop_c >= 1.5:
+            return "medium"
+        return "low"
 
     @staticmethod
     def _apply_occupancy(probability: float, occupancy: bool | None) -> float:
@@ -228,10 +364,7 @@ class DhwUsageModel:
         self._samples = [
             sample for sample in self._samples if sample.timestamp >= cutoff
         ]
-        self._events = [event for event in self._events if event.timestamp >= cutoff]
-        self._last_event_timestamp = (
-            self._events[-1].timestamp if self._events else None
-        )
+        self._events = [event for event in self._events if event.end_timestamp >= cutoff]
 
     def as_dict(self) -> dict[str, Any]:
         """Serialize usage-learning state."""
@@ -250,17 +383,19 @@ class DhwUsageModel:
             "events": [
                 {
                     "timestamp": item.timestamp,
+                    "end_timestamp": item.end_timestamp,
                     "day_type": item.day_type,
                     "hour": item.hour,
                     "date_key": item.date_key,
                     "drop_c": item.drop_c,
+                    "draw_size": item.draw_size,
                 }
                 for item in self._events
             ],
         }
 
     def restore(self, data: dict[str, Any] | None) -> None:
-        """Restore persisted usage-learning state."""
+        """Restore persisted usage-learning state, including legacy events."""
         if not isinstance(data, dict):
             return
 
@@ -287,13 +422,19 @@ class DhwUsageModel:
             if not isinstance(item, dict):
                 continue
             try:
+                timestamp = float(item["timestamp"])
+                drop_c = float(item["drop_c"])
                 events.append(
                     UsageEvent(
-                        timestamp=float(item["timestamp"]),
+                        timestamp=timestamp,
+                        end_timestamp=float(item.get("end_timestamp", timestamp)),
                         day_type=str(item["day_type"]),
                         hour=int(item["hour"]),
                         date_key=str(item["date_key"]),
-                        drop_c=float(item["drop_c"]),
+                        drop_c=drop_c,
+                        draw_size=str(
+                            item.get("draw_size", self._draw_size(drop_c))
+                        ),
                     )
                 )
             except KeyError, TypeError, ValueError:
@@ -303,10 +444,10 @@ class DhwUsageModel:
         events.sort(key=lambda item: item.timestamp)
         self._samples = samples
         self._events = events
-        self._last_event_timestamp = events[-1].timestamp if events else None
 
         newest = max(
-            [item.timestamp for item in samples] + [item.timestamp for item in events],
+            [item.timestamp for item in samples]
+            + [item.end_timestamp for item in events],
             default=None,
         )
         if newest is not None:
