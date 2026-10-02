@@ -142,3 +142,133 @@ def test_serialization_round_trip() -> None:
 
     assert estimate.event_count == 1
     assert estimate.typical_usage_drop == pytest.approx(3.0)
+
+
+def test_consecutive_drop_segments_are_grouped_as_one_draw() -> None:
+    """A long draw is learned as one event instead of repeated events."""
+    model = DhwUsageModel()
+    start = _weekday(0, 7)
+
+    for minutes, temperature in ((0, 54.0), (5, 51.5), (10, 48.5)):
+        moment = start + timedelta(minutes=minutes)
+        model.add_observation(
+            timestamp=moment.timestamp(),
+            temperature=temperature,
+            local_datetime=moment,
+            heating_active=False,
+        )
+
+    estimate = model.estimate(
+        now_local=start + timedelta(minutes=10),
+        occupancy=True,
+    )
+
+    assert estimate.event_count == 1
+    assert estimate.typical_usage_drop == pytest.approx(5.5)
+    assert estimate.medium_event_count == 1
+
+
+def test_large_grouped_draw_is_classified_as_large() -> None:
+    """Grouped temperature impact is classified after segments are merged."""
+    model = DhwUsageModel()
+    start = _weekday(0, 18)
+
+    for minutes, temperature in ((0, 56.0), (5, 52.0), (10, 49.0)):
+        moment = start + timedelta(minutes=minutes)
+        model.add_observation(
+            timestamp=moment.timestamp(),
+            temperature=temperature,
+            local_datetime=moment,
+            heating_active=False,
+        )
+
+    estimate = model.estimate(
+        now_local=start + timedelta(minutes=10),
+        occupancy=True,
+    )
+
+    assert estimate.event_count == 1
+    assert estimate.large_event_count == 1
+    assert estimate.typical_usage_drop == pytest.approx(7.0)
+
+
+def test_forecast_exposes_probability_and_expected_thermal_impact() -> None:
+    """Repeated demand creates an explainable hourly six-hour forecast."""
+    model = DhwUsageModel()
+
+    for week in range(5):
+        start = _weekday(week, 7)
+        model.add_observation(
+            timestamp=start.timestamp(),
+            temperature=53.0,
+            local_datetime=start,
+            heating_active=False,
+        )
+        later = start + timedelta(minutes=5)
+        model.add_observation(
+            timestamp=later.timestamp(),
+            temperature=49.0,
+            local_datetime=later,
+            heating_active=False,
+        )
+
+    now = _weekday(5, 7)
+    estimate = model.estimate(now_local=now, occupancy=True)
+
+    assert len(estimate.forecast) == 6
+    assert estimate.forecast[0].probability > 0
+    assert estimate.forecast[0].typical_drop_c == pytest.approx(4.0)
+    assert estimate.expected_usage_drop_next_6h > 0
+    assert estimate.next_expected_usage_probability is not None
+    assert estimate.next_expected_usage_drop == pytest.approx(4.0)
+    assert estimate.demand_level in {"medium", "high"}
+
+
+def test_confidence_uses_relevant_day_type_exposure() -> None:
+    """Weekday observations do not falsely create weekend confidence."""
+    model = DhwUsageModel()
+
+    for week in range(5):
+        start = _weekday(week, 12)
+        model.add_observation(
+            timestamp=start.timestamp(),
+            temperature=52.0,
+            local_datetime=start,
+            heating_active=False,
+        )
+
+    weekday_estimate = model.estimate(
+        now_local=_weekday(5, 12),
+        occupancy=True,
+    )
+    weekend = datetime(2026, 10, 3, 12, tzinfo=UTC)
+    weekend_estimate = model.estimate(now_local=weekend, occupancy=True)
+
+    assert weekday_estimate.confidence > 0
+    assert weekend_estimate.confidence == 0
+    assert weekend_estimate.relevant_observed_days == 0
+
+
+def test_restore_accepts_legacy_events_without_grouping_fields() -> None:
+    """Stored data from the first usage model version remains loadable."""
+    start = _weekday(0, 7)
+    model = DhwUsageModel()
+    model.restore(
+        {
+            "samples": [],
+            "events": [
+                {
+                    "timestamp": start.timestamp(),
+                    "day_type": "weekday",
+                    "hour": 7,
+                    "date_key": start.date().isoformat(),
+                    "drop_c": 6.5,
+                }
+            ],
+        }
+    )
+
+    estimate = model.estimate(now_local=start, occupancy=None)
+
+    assert estimate.event_count == 1
+    assert estimate.large_event_count == 1
