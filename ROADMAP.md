@@ -90,7 +90,27 @@ Next validation work:
 - improve recurring demand-window detection beyond one-hour buckets
 - optionally learn holiday/away behaviour
 
-## 0.4 — Price planner
+## 0.4 — Predicted autonomy
+
+Status: **implemented in shadow mode / validation next**
+
+- passive autonomy from current DHW temperature and learned standby loss
+- demand-adjusted autonomy from the six-hour learned usage forecast
+- predicted DHW temperature after six hours
+- autonomy confidence
+- explicit prediction basis diagnostics
+- demand adjustment only after minimum usage-learning confidence
+- thermal-only fallback while usage learning is immature
+- no physical control output from the autonomy model
+
+Next validation work:
+
+- compare predicted autonomy against real temperature trajectories
+- tune the minimum usage-confidence threshold from real installations
+- evaluate conservative handling of expected demand within hourly buckets
+- extend beyond the current six-hour learned demand horizon
+
+## 0.5 — Price planner
 
 Status: **next major implementation**
 
@@ -133,7 +153,7 @@ Rules:
 - price hold is only allowed when thermal margin is sufficient
 - learned usage risk must be considered before delaying DHW
 
-## 0.5 — Active control
+## 0.6 — Active control
 
 Status: **not yet enabled**
 
@@ -151,7 +171,7 @@ Status: **not yet enabled**
 
 Active control must remain disabled until shadow planning is considered stable.
 
-## 0.6 — PumpSteer cooperation
+## 0.7 — PumpSteer cooperation
 
 Status: **planned**
 
@@ -182,7 +202,7 @@ Goal:
 - avoid optional DHW precharge when building heating demand is high
 - never delay DHW when the comfort floor is at risk
 
-## 0.7 — Explainability and long-term diagnostics
+## 0.8 — Explainability and long-term diagnostics
 
 Status: **planned**
 
