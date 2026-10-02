@@ -195,6 +195,12 @@
       },
       "usage_learning_confidence": {
         "name": "Usage learning confidence"
+      },
+      "expected_usage_drop_next_6h": {
+        "name": "Expected DHW usage impact next 6 hours"
+      },
+      "demand_level": {
+        "name": "DHW demand level"
       }
     },
     "binary_sensor": {
