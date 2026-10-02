@@ -302,11 +302,7 @@ class DhwUsageModel:
     def _observed_days_for_type(self, day_type: str) -> int:
         """Return distinct observed dates for the selected day type."""
         return len(
-            {
-                sample.date_key
-                for sample in self._samples
-                if sample.day_type == day_type
-            }
+            {sample.date_key for sample in self._samples if sample.day_type == day_type}
         )
 
     @staticmethod
@@ -434,9 +430,7 @@ class DhwUsageModel:
                         hour=int(item["hour"]),
                         date_key=str(item["date_key"]),
                         drop_c=drop_c,
-                        draw_size=str(
-                            item.get("draw_size", self._draw_size(drop_c))
-                        ),
+                        draw_size=str(item.get("draw_size", self._draw_size(drop_c))),
                     )
                 )
             except KeyError, TypeError, ValueError:
