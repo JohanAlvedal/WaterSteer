@@ -50,6 +50,7 @@ from .controller import (
     apply_thermal_confidence_guard,
     classify_dhw_temperature,
 )
+from .price_planner import extract_price_slots, plan_price_window
 from .thermal_model import DhwThermalModel
 from .usage_model import DhwUsageModel
 
@@ -251,6 +252,26 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             usage_confidence=usage.confidence,
             usage_forecast=usage.forecast,
         )
+        price_slots = extract_price_slots(
+            now=now_local,
+            attributes=(
+                dict(price_state.attributes)
+                if price_state is not None
+                else {}
+            ),
+        )
+        price_plan = plan_price_window(
+            now=now_local,
+            current_temperature=dhw_temperature,
+            comfort_minimum=thresholds.comfort_minimum,
+            normal_target=thresholds.normal_target,
+            predicted_autonomy_minutes=autonomy.predicted_minutes,
+            autonomy_confidence=autonomy.confidence,
+            heating_rate_c_per_hour=thermal.heating_rate_c_per_hour,
+            current_price=electricity_price,
+            price_slots=price_slots,
+            minimum_confidence=minimum_thermal_confidence,
+        )
 
         raw_decision = classify_dhw_temperature(dhw_temperature, thresholds)
         decision = apply_thermal_confidence_guard(
@@ -296,6 +317,20 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 else None
             ),
             "electricity_price": electricity_price,
+            "price_plan_status": price_plan.status,
+            "price_plan_reason": price_plan.reason,
+            "price_plan_next_charge": price_plan.next_charge,
+            "price_plan_charge_end": price_plan.charge_end,
+            "price_plan_expected_charge_minutes": (
+                price_plan.expected_charge_minutes
+            ),
+            "price_plan_target": price_plan.planned_target,
+            "price_plan_selected_price": price_plan.selected_price,
+            "price_plan_savings_vs_current": price_plan.savings_vs_current,
+            "price_plan_slot_count": price_plan.price_slot_count,
+            "price_plan_deadline": price_plan.planning_deadline,
+            "price_plan_confidence": price_plan.confidence,
+            "price_plan_window_active_now": price_plan.window_active_now,
             "standby_loss": thermal.standby_loss_c_per_hour,
             "heating_rate": thermal.heating_rate_c_per_hour,
             "projected_temperature_1h": thermal.projected_temperature_1h,
