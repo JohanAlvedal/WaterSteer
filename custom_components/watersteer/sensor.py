@@ -99,6 +99,19 @@ SENSORS: tuple[WaterSteerSensorEntityDescription, ...] = (
         value_fn=lambda data: data["usage_probability_next_6h"],
     ),
     WaterSteerSensorEntityDescription(
+        key="expected_usage_drop_next_6h",
+        translation_key="expected_usage_drop_next_6h",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        value_fn=lambda data: data["expected_usage_drop_next_6h"],
+    ),
+    WaterSteerSensorEntityDescription(
+        key="demand_level",
+        translation_key="demand_level",
+        value_fn=lambda data: data["demand_level"],
+    ),
+    WaterSteerSensorEntityDescription(
         key="next_expected_usage",
         translation_key="next_expected_usage",
         device_class=SensorDeviceClass.TIMESTAMP,
@@ -186,6 +199,8 @@ class WaterSteerSensor(
 
         if self.entity_description.key in {
             "usage_probability_next_6h",
+            "expected_usage_drop_next_6h",
+            "demand_level",
             "next_expected_usage",
             "typical_usage_drop",
             "usage_learning_confidence",
@@ -193,7 +208,17 @@ class WaterSteerSensor(
             return {
                 "usage_event_count": data["usage_event_count"],
                 "observed_days": data["usage_observed_days"],
+                "relevant_observed_days": data["usage_relevant_observed_days"],
+                "profile_day_type": data["usage_profile_day_type"],
+                "small_event_count": data["usage_small_event_count"],
+                "medium_event_count": data["usage_medium_event_count"],
+                "large_event_count": data["usage_large_event_count"],
+                "next_expected_usage_probability": data[
+                    "next_expected_usage_probability"
+                ],
+                "next_expected_usage_drop": data["next_expected_usage_drop"],
                 "occupancy_state": data["occupancy_state"],
+                "hourly_forecast": data["usage_forecast"],
             }
 
         return None
