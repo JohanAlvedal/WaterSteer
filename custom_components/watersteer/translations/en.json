@@ -201,6 +201,18 @@
       },
       "demand_level": {
         "name": "DHW demand level"
+      },
+      "passive_autonomy": {
+        "name": "Passive DHW autonomy"
+      },
+      "predicted_autonomy": {
+        "name": "Predicted DHW autonomy"
+      },
+      "predicted_temperature_6h": {
+        "name": "Predicted DHW temperature in 6 hours"
+      },
+      "autonomy_confidence": {
+        "name": "DHW autonomy confidence"
       }
     },
     "binary_sensor": {
