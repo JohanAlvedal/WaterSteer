@@ -125,6 +125,42 @@ SENSORS: tuple[WaterSteerSensorEntityDescription, ...] = (
         value_fn=lambda data: data["autonomy_confidence"],
     ),
     WaterSteerSensorEntityDescription(
+        key="price_plan_status",
+        translation_key="price_plan_status",
+        value_fn=lambda data: data["price_plan_status"],
+    ),
+    WaterSteerSensorEntityDescription(
+        key="next_charge",
+        translation_key="next_charge",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        value_fn=lambda data: data["price_plan_next_charge"],
+    ),
+    WaterSteerSensorEntityDescription(
+        key="expected_charge_duration",
+        translation_key="expected_charge_duration",
+        device_class=SensorDeviceClass.DURATION,
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+        value_fn=lambda data: data["price_plan_expected_charge_minutes"],
+    ),
+    WaterSteerSensorEntityDescription(
+        key="planned_target",
+        translation_key="planned_target",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        value_fn=lambda data: data["price_plan_target"],
+    ),
+    WaterSteerSensorEntityDescription(
+        key="selected_price",
+        translation_key="selected_price",
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=3,
+        value_fn=lambda data: data["price_plan_selected_price"],
+    ),
+    WaterSteerSensorEntityDescription(
         key="usage_probability_next_6h",
         translation_key="usage_probability_next_6h",
         native_unit_of_measurement=PERCENTAGE,
@@ -236,6 +272,26 @@ class WaterSteerSensor(
                 "autonomy_basis": data["autonomy_basis"],
                 "demand_adjusted": data["autonomy_demand_adjusted"],
                 "usage_learning_confidence": data["usage_learning_confidence"],
+            }
+
+        if self.entity_description.key in {
+            "price_plan_status",
+            "next_charge",
+            "expected_charge_duration",
+            "planned_target",
+            "selected_price",
+        }:
+            return {
+                "reason": data["price_plan_reason"],
+                "charge_end": data["price_plan_charge_end"],
+                "planning_deadline": data["price_plan_deadline"],
+                "current_price": data["electricity_price"],
+                "selected_price": data["price_plan_selected_price"],
+                "savings_vs_current": data["price_plan_savings_vs_current"],
+                "price_slot_count": data["price_plan_slot_count"],
+                "planner_confidence": data["price_plan_confidence"],
+                "window_active_now": data["price_plan_window_active_now"],
+                "shadow_mode": data["shadow_mode"],
             }
 
         if self.entity_description.key in {
