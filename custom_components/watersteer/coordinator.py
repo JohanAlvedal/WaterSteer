@@ -20,6 +20,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
 from homeassistant.util.unit_conversion import TemperatureConverter
 
+from .autonomy_model import estimate_autonomy
 from .const import (
     CONF_ABSOLUTE_MINIMUM,
     CONF_COMFORT_MINIMUM,
@@ -44,7 +45,6 @@ from .const import (
     MODE_LEARNING,
     MODE_SAFETY,
 )
-from .autonomy_model import estimate_autonomy
 from .controller import (
     DhwThresholds,
     apply_thermal_confidence_guard,
