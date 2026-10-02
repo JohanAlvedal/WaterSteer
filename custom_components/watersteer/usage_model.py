@@ -364,7 +364,9 @@ class DhwUsageModel:
         self._samples = [
             sample for sample in self._samples if sample.timestamp >= cutoff
         ]
-        self._events = [event for event in self._events if event.end_timestamp >= cutoff]
+        self._events = [
+            event for event in self._events if event.end_timestamp >= cutoff
+        ]
 
     def as_dict(self) -> dict[str, Any]:
         """Serialize usage-learning state."""
