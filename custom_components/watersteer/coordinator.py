@@ -44,6 +44,7 @@ from .const import (
     MODE_LEARNING,
     MODE_SAFETY,
 )
+from .autonomy_model import estimate_autonomy
 from .controller import (
     DhwThresholds,
     apply_thermal_confidence_guard,
@@ -242,6 +243,14 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             now_local=now_local,
             occupancy=_occupancy_hint(occupancy_state),
         )
+        autonomy = estimate_autonomy(
+            current_temperature=dhw_temperature,
+            comfort_minimum=thresholds.comfort_minimum,
+            standby_loss_c_per_hour=thermal.standby_loss_c_per_hour,
+            thermal_confidence=thermal.loss_confidence,
+            usage_confidence=usage.confidence,
+            usage_forecast=usage.forecast,
+        )
 
         raw_decision = classify_dhw_temperature(dhw_temperature, thresholds)
         decision = apply_thermal_confidence_guard(
@@ -291,6 +300,12 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "heating_rate": thermal.heating_rate_c_per_hour,
             "projected_temperature_1h": thermal.projected_temperature_1h,
             "minutes_to_comfort": thermal.minutes_to_comfort,
+            "passive_autonomy_minutes": autonomy.passive_minutes,
+            "predicted_autonomy_minutes": autonomy.predicted_minutes,
+            "predicted_temperature_6h": autonomy.predicted_temperature_6h,
+            "autonomy_confidence": autonomy.confidence,
+            "autonomy_basis": autonomy.basis,
+            "autonomy_demand_adjusted": autonomy.demand_adjusted,
             "learning_confidence": thermal.loss_confidence,
             "heating_confidence": thermal.heating_confidence,
             "thermal_observation_count": thermal.observation_count,
