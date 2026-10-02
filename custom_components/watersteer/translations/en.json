@@ -213,6 +213,21 @@
       },
       "autonomy_confidence": {
         "name": "DHW autonomy confidence"
+      },
+      "price_plan_status": {
+        "name": "DHW price plan status"
+      },
+      "next_charge": {
+        "name": "Next planned DHW charge"
+      },
+      "expected_charge_duration": {
+        "name": "Expected DHW charge duration"
+      },
+      "planned_target": {
+        "name": "Planned DHW target"
+      },
+      "selected_price": {
+        "name": "Selected DHW charge price"
       }
     },
     "binary_sensor": {
