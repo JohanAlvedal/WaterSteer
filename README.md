@@ -70,12 +70,17 @@ It detects likely hot-water draws from rapid temperature drops and builds separa
 The model currently learns:
 
 - recent DHW usage detection
-- usage probability over the next six hours
-- next expected DHW usage window
+- grouped draw events, so a longer shower is not counted as several separate uses
+- small, medium, and large draw impact
+- separate weekday and weekend confidence
+- hourly usage probability over the next six hours
+- expected thermal usage impact over the next six hours
+- next expected DHW usage window, probability, and typical impact
+- near-term demand level: low, medium, or high
 - typical temperature drop caused by usage
-- usage-learning confidence
-- number of observed usage events
-- number of observed days
+- usage-learning confidence based on exposure to the relevant day type
+- number of observed usage events and days
+- an explainable six-hour hourly demand forecast in sensor attributes
 
 Occupancy is optional. If an occupancy entity is configured, an explicit away state reduces expected demand. WaterSteer still works without any presence data.
 
@@ -143,6 +148,8 @@ sensor.watersteer_estimated_time_to_comfort_minimum
 sensor.watersteer_thermal_learning_confidence
 
 sensor.watersteer_dhw_usage_probability_next_6_hours
+sensor.watersteer_expected_dhw_usage_impact_next_6_hours
+sensor.watersteer_dhw_demand_level
 sensor.watersteer_next_expected_dhw_usage
 sensor.watersteer_typical_dhw_usage_drop
 sensor.watersteer_usage_learning_confidence
