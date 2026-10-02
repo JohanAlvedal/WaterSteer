@@ -299,11 +299,33 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "heating_segment_count": thermal.heating_segment_count,
             "usage_detected": usage.usage_detected,
             "usage_probability_next_6h": usage.usage_probability_next_6h,
+            "expected_usage_drop_next_6h": usage.expected_usage_drop_next_6h,
             "next_expected_usage": usage.next_expected_usage,
+            "next_expected_usage_probability": usage.next_expected_usage_probability,
+            "next_expected_usage_drop": usage.next_expected_usage_drop,
+            "demand_level": usage.demand_level,
             "typical_usage_drop": usage.typical_usage_drop,
             "usage_learning_confidence": usage.confidence,
             "usage_event_count": usage.event_count,
             "usage_observed_days": usage.observed_days,
+            "usage_relevant_observed_days": usage.relevant_observed_days,
+            "usage_small_event_count": usage.small_event_count,
+            "usage_medium_event_count": usage.medium_event_count,
+            "usage_large_event_count": usage.large_event_count,
+            "usage_profile_day_type": usage.profile_day_type,
+            "usage_forecast": [
+                {
+                    "start": bucket.start.isoformat(),
+                    "probability": round(bucket.probability * 100, 1),
+                    "typical_drop_c": (
+                        round(bucket.typical_drop_c, 2)
+                        if bucket.typical_drop_c is not None
+                        else None
+                    ),
+                    "expected_drop_c": round(bucket.expected_drop_c, 2),
+                }
+                for bucket in usage.forecast
+            ],
             "occupancy_state": usage.occupancy_state,
             "occupancy_entity": occupancy_entity,
             "dhw_temperature_entity": temperature_entity,
