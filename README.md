@@ -167,6 +167,12 @@ sensor.watersteer_predicted_dhw_autonomy
 sensor.watersteer_predicted_dhw_temperature_in_6_hours
 sensor.watersteer_dhw_autonomy_confidence
 
+sensor.watersteer_dhw_price_plan_status
+sensor.watersteer_next_planned_dhw_charge
+sensor.watersteer_expected_dhw_charge_duration
+sensor.watersteer_planned_dhw_target
+sensor.watersteer_selected_dhw_charge_price
+
 sensor.watersteer_dhw_usage_probability_next_6_hours
 sensor.watersteer_expected_dhw_usage_impact_next_6_hours
 sensor.watersteer_dhw_demand_level
@@ -219,7 +225,7 @@ controller.py
   -> deterministic temperature decisions and safety guards
 
 price_planner.py
-  -> future price planning (next major step)
+  -> safe shadow planning across future electricity-price intervals
 
 actions.py
   -> physical output execution (future active-control step)
@@ -229,18 +235,35 @@ The learning models estimate system behaviour. They do not rewrite the controlle
 
 > Learn the system, not the controller.
 
-## Planned price optimization
+## Shadow price planning
 
-The next major planning layer will combine:
+WaterSteer now includes an explainable price planner that runs in shadow mode only.
 
-- thermal time-to-comfort
-- learned usage probability
-- weekday/weekend pattern
-- optional occupancy
-- future electricity prices
-- learned heating duration
+The planner combines:
 
-Example future reasoning:
+- current DHW temperature
+- predicted autonomy
+- autonomy confidence
+- learned DHW heating rate
+- current electricity price
+- future electricity-price intervals
+- a safety reserve before the predicted comfort deadline
+
+It selects the cheapest contiguous charge window that safely fits before the predicted comfort minimum is reached.
+
+Important safeguards:
+
+- price planning is disabled while autonomy confidence is below the configured thermal-confidence threshold
+- future price data must be available in a recognized Home Assistant attribute format
+- the learned heating rate must be available before a timed charge window can be planned
+- the planner keeps a reserve before the predicted comfort deadline
+- reaching the comfort minimum always overrides price
+- cheap electricity alone never creates a charge request when the normal DHW target is already satisfied
+- no Block, Normal, or Boost action is executed
+
+Supported future-price attribute shapes currently include timestamped `raw_today` / `raw_tomorrow`, numeric `today` / `tomorrow` arrays, and timestamped `prices`, `price_data`, or `forecast` lists.
+
+Example shadow reasoning:
 
 ```text
 Current DHW temperature: 50.7 °C
@@ -250,8 +273,10 @@ Occupancy: away
 Cheaper price window starts in 5 h
 Thermal confidence: 72%
 
-Decision: price_hold
-Reason: sufficient thermal margin until cheaper period
+Price plan: price_hold
+Reason: safe_to_wait_for_selected_price_window
+Next planned charge: 14:00
+Planning deadline: 16:35
 ```
 
 The same temperature on a weekend with high learned usage probability may result in normal operation instead.
