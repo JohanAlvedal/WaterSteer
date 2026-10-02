@@ -112,9 +112,9 @@ Next validation work:
 
 ## 0.5 — Price planner
 
-Status: **next major implementation**
+Status: **implemented in shadow mode / field validation next**
 
-The price planner will combine:
+The price planner combines:
 
 - current DHW temperature
 - projected thermal decay
@@ -126,23 +126,26 @@ The price planner will combine:
 - expected charge duration
 - current and future electricity prices
 
-Planned entities:
+Implemented entities:
 
 ```text
-sensor.watersteer_next_charge
-sensor.watersteer_expected_charge_duration
-sensor.watersteer_planned_target
-sensor.watersteer_price_window
+sensor.watersteer_dhw_price_plan_status
+sensor.watersteer_next_planned_dhw_charge
+sensor.watersteer_expected_dhw_charge_duration
+sensor.watersteer_planned_dhw_target
+sensor.watersteer_selected_dhw_charge_price
 ```
 
-Planned decisions:
+Shadow plan states:
 
 ```text
+learning
+unavailable
+temperature_hold
 price_hold
-price_charging
+price_charge_window
 comfort_recovery
 normal_operation
-forced_boost
 ```
 
 Rules:
@@ -152,6 +155,18 @@ Rules:
 - low-confidence models must be conservative
 - price hold is only allowed when thermal margin is sufficient
 - learned usage risk must be considered before delaying DHW
+- the selected charge window must fit before the predicted comfort deadline
+- a safety reserve is kept before that deadline
+- a learned DHW heating rate is required for timed price planning
+- no physical control action is executed
+
+Field-validation focus before active control:
+
+- verify the selected price window against the actual price entity
+- compare predicted charge duration with actual DHW heating cycles
+- compare planning deadline with observed comfort-floor crossings
+- watch for false `price_hold` decisions around real morning/evening draws
+- verify behavior when tomorrow's prices are not published yet
 
 ## 0.6 — Active control
 
