@@ -71,12 +71,23 @@ Status: **implemented in first explainable version / validation next**
 - reduced demand weighting while explicitly away
 - no dependency on occupancy data
 
-Planned improvements:
+Implemented improvements:
 
-- distinguish small and large draws
-- learn recurring morning/evening demand windows
-- improve event grouping for long showers and repeated draws
+- group consecutive temperature-drop segments into one draw event
+- distinguish small, medium, and large draw impact
+- use separate confidence for weekday and weekend learning
+- expose a six-hour hourly demand forecast
+- estimate expected thermal usage impact over the next six hours
+- expose the next expected usage probability and typical impact
+- classify near-term demand as low, medium, or high
 - expose richer profile diagnostics
+
+Next validation work:
+
+- validate draw-size thresholds against real installations
+- validate weekday/weekend confidence growth
+- tune probability and demand-level thresholds from real data
+- improve recurring demand-window detection beyond one-hour buckets
 - optionally learn holiday/away behaviour
 
 ## 0.4 — Price planner
