@@ -382,7 +382,15 @@ def test_recovery_does_not_duplicate_recent_direct_draw() -> None:
         heating_active=False,
         standby_loss_c_per_hour=0.5,
     )
-    draw = baseline + timedelta(hours=2)
+    before_draw = baseline + timedelta(minutes=45)
+    model.add_observation(
+        timestamp=before_draw.timestamp(),
+        temperature=55.0,
+        local_datetime=before_draw,
+        heating_active=False,
+        standby_loss_c_per_hour=0.5,
+    )
+    draw = before_draw + timedelta(minutes=5)
     model.add_observation(
         timestamp=draw.timestamp(),
         temperature=52.0,
@@ -402,5 +410,5 @@ def test_recovery_does_not_duplicate_recent_direct_draw() -> None:
     estimate = model.estimate(now_local=recovery, occupancy=True)
 
     assert estimate.event_count == 1
-    assert estimate.direct_event_count == 0
-    assert estimate.recovery_event_count == 1
+    assert estimate.direct_event_count == 1
+    assert estimate.recovery_event_count == 0
