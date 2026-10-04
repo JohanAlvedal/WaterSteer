@@ -310,6 +310,8 @@ class WaterSteerSensor(
                 "small_event_count": data["usage_small_event_count"],
                 "medium_event_count": data["usage_medium_event_count"],
                 "large_event_count": data["usage_large_event_count"],
+                "direct_event_count": data["usage_direct_event_count"],
+                "recovery_event_count": data["usage_recovery_event_count"],
                 "next_expected_usage_probability": data[
                     "next_expected_usage_probability"
                 ],
