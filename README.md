@@ -78,7 +78,14 @@ The autonomy model is analytics only. It does not issue Block, Normal, or Boost 
 
 WaterSteer also learns explainable DHW usage patterns.
 
-It detects likely hot-water draws from rapid temperature drops and builds separate time-of-day profiles for:
+It detects likely hot-water draws using a hybrid approach:
+
+- direct detection from rapid unexplained temperature drops
+- recovery-based detection when a DHW heating cycle starts significantly earlier than learned standby loss can explain
+
+Recovery-based events are only created when the recharge is materially earlier than the passive thermal model predicts, and recent direct draw events suppress duplicate recovery events.
+
+The model then builds separate time-of-day profiles for:
 
 - weekdays
 - weekends
@@ -86,7 +93,9 @@ It detects likely hot-water draws from rapid temperature drops and builds separa
 The model currently learns:
 
 - recent DHW usage detection
-- grouped draw events, so a longer shower is not counted as several separate uses
+- grouped direct draw events, so a longer shower is not counted as several separate uses
+- recovery-inferred usage events for installations where the DHW sensor reacts slowly to draws
+- separate direct-event and recovery-event diagnostics
 - small, medium, and large draw impact
 - separate weekday and weekend confidence
 - hourly usage probability over the next six hours
