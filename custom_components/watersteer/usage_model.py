@@ -14,6 +14,12 @@ MAX_EVENT_SEGMENT_SECONDS = 30 * 60
 USAGE_DROP_MIN_C = 1.5
 USAGE_DROP_RATE_MIN_C_PER_HOUR = 3.0
 EVENT_GROUP_GAP_SECONDS = 20 * 60
+RECOVERY_DUPLICATE_GAP_SECONDS = 60 * 60
+RECOVERY_MIN_BASELINE_AGE_SECONDS = 45 * 60
+RECOVERY_MAX_BASELINE_AGE_SECONDS = 24 * 60 * 60
+RECOVERY_MIN_EARLY_MINUTES = 30
+RECOVERY_MAX_PASSIVE_FRACTION = 0.75
+RECOVERY_MIN_INFERRED_DROP_C = 1.0
 RECENT_USAGE_SECONDS = 20 * 60
 PROFILE_HORIZON_HOURS = 6
 EXPECTED_USAGE_PROBABILITY = 0.30
@@ -49,6 +55,7 @@ class UsageEvent:
     date_key: str
     drop_c: float
     draw_size: str
+    source: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,6 +87,8 @@ class UsageEstimate:
     small_event_count: int
     medium_event_count: int
     large_event_count: int
+    direct_event_count: int
+    recovery_event_count: int
     occupancy_state: str
     profile_day_type: str
     forecast: tuple[UsageForecastBucket, ...]
@@ -100,6 +109,7 @@ class DhwUsageModel:
         temperature: float,
         local_datetime: datetime,
         heating_active: bool | None,
+        standby_loss_c_per_hour: float | None = None,
     ) -> bool:
         """Sample temperature and infer grouped DHW usage events."""
         if self._samples:
@@ -119,7 +129,13 @@ class DhwUsageModel:
         )
 
         if self._samples:
-            self._detect_usage_segment(self._samples[-1], sample)
+            previous = self._samples[-1]
+            if heating_active is True and previous.heating_active is not True:
+                self._detect_recovery_event(
+                    current=sample,
+                    standby_loss_c_per_hour=standby_loss_c_per_hour,
+                )
+            self._detect_usage_segment(previous, sample)
 
         self._samples.append(sample)
         self._purge_old(timestamp)
@@ -160,6 +176,7 @@ class DhwUsageModel:
                     date_key=last_event.date_key,
                     drop_c=combined_drop,
                     draw_size=self._draw_size(combined_drop),
+                    source=last_event.source,
                 )
                 return
 
@@ -172,8 +189,79 @@ class DhwUsageModel:
                 date_key=current.date_key,
                 drop_c=drop_c,
                 draw_size=self._draw_size(drop_c),
+                source="direct",
             )
         )
+
+    def _detect_recovery_event(
+        self,
+        *,
+        current: UsageSample,
+        standby_loss_c_per_hour: float | None,
+    ) -> None:
+        """Infer usage from an unexpectedly early DHW recovery cycle."""
+        if standby_loss_c_per_hour is None or standby_loss_c_per_hour <= 0:
+            return
+
+        baseline = self._latest_post_heating_sample()
+        if baseline is None:
+            return
+
+        elapsed_seconds = current.timestamp - baseline.timestamp
+        if not (
+            RECOVERY_MIN_BASELINE_AGE_SECONDS
+            <= elapsed_seconds
+            <= RECOVERY_MAX_BASELINE_AGE_SECONDS
+        ):
+            return
+
+        temperature_drop = baseline.temperature - current.temperature
+        if temperature_drop <= 0:
+            return
+
+        expected_passive_hours = temperature_drop / standby_loss_c_per_hour
+        actual_hours = elapsed_seconds / 3600
+        early_minutes = (expected_passive_hours - actual_hours) * 60
+
+        if early_minutes < RECOVERY_MIN_EARLY_MINUTES:
+            return
+        if actual_hours > expected_passive_hours * RECOVERY_MAX_PASSIVE_FRACTION:
+            return
+
+        if self._events:
+            latest = self._events[-1]
+            if (
+                current.timestamp - latest.end_timestamp
+                <= RECOVERY_DUPLICATE_GAP_SECONDS
+            ):
+                return
+
+        expected_passive_drop = standby_loss_c_per_hour * actual_hours
+        inferred_drop = max(
+            RECOVERY_MIN_INFERRED_DROP_C,
+            temperature_drop - expected_passive_drop,
+        )
+        self._events.append(
+            UsageEvent(
+                timestamp=current.timestamp,
+                end_timestamp=current.timestamp,
+                day_type=current.day_type,
+                hour=current.hour,
+                date_key=current.date_key,
+                drop_c=inferred_drop,
+                draw_size=self._draw_size(inferred_drop),
+                source="recovery",
+            )
+        )
+
+    def _latest_post_heating_sample(self) -> UsageSample | None:
+        """Return the latest sample immediately after a completed heating cycle."""
+        for index in range(len(self._samples) - 1, 0, -1):
+            current = self._samples[index]
+            previous = self._samples[index - 1]
+            if previous.heating_active is True and current.heating_active is False:
+                return current
+        return None
 
     def estimate(
         self,
@@ -268,6 +356,10 @@ class DhwUsageModel:
             small_event_count=size_counts["small"],
             medium_event_count=size_counts["medium"],
             large_event_count=size_counts["large"],
+            direct_event_count=sum(event.source == "direct" for event in self._events),
+            recovery_event_count=sum(
+                event.source == "recovery" for event in self._events
+            ),
             occupancy_state=self._occupancy_state(occupancy),
             profile_day_type=profile_day_type,
             forecast=tuple(forecast),
@@ -387,6 +479,7 @@ class DhwUsageModel:
                     "date_key": item.date_key,
                     "drop_c": item.drop_c,
                     "draw_size": item.draw_size,
+                    "source": item.source,
                 }
                 for item in self._events
             ],
@@ -431,6 +524,7 @@ class DhwUsageModel:
                         date_key=str(item["date_key"]),
                         drop_c=drop_c,
                         draw_size=str(item.get("draw_size", self._draw_size(drop_c))),
+                        source=str(item.get("source", "direct")),
                     )
                 )
             except KeyError, TypeError, ValueError:
