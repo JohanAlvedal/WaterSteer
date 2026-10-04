@@ -229,17 +229,21 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 dhw_temperature,
                 heating_hint,
             )
-            usage_observation_added = self.usage_model.add_observation(
-                timestamp=now.timestamp(),
-                temperature=dhw_temperature,
-                local_datetime=now_local,
-                heating_active=heating_hint,
-            )
 
         thermal = self.thermal_model.estimate(
             dhw_temperature,
             thresholds.comfort_minimum,
         )
+
+        if dhw_temperature is not None:
+            usage_observation_added = self.usage_model.add_observation(
+                timestamp=now.timestamp(),
+                temperature=dhw_temperature,
+                local_datetime=now_local,
+                heating_active=heating_hint,
+                standby_loss_c_per_hour=thermal.standby_loss_c_per_hour,
+            )
+
         usage = self.usage_model.estimate(
             now_local=now_local,
             occupancy=_occupancy_hint(occupancy_state),
@@ -358,6 +362,8 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "usage_small_event_count": usage.small_event_count,
             "usage_medium_event_count": usage.medium_event_count,
             "usage_large_event_count": usage.large_event_count,
+            "usage_direct_event_count": usage.direct_event_count,
+            "usage_recovery_event_count": usage.recovery_event_count,
             "usage_profile_day_type": usage.profile_day_type,
             "usage_forecast": [
                 {
