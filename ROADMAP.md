@@ -73,6 +73,10 @@ Status: **implemented in first explainable version / validation next**
 
 Implemented improvements:
 
+- hybrid usage detection using both direct temperature drops and early recovery cycles
+- compare recovery timing against learned standby loss before inferring usage
+- suppress duplicate recovery events after a recent direct draw
+- expose direct vs recovery event diagnostics
 - group consecutive temperature-drop segments into one draw event
 - distinguish small, medium, and large draw impact
 - use separate confidence for weekday and weekend learning
@@ -84,6 +88,8 @@ Implemented improvements:
 
 Next validation work:
 
+- validate recovery-inferred events against known real DHW usage
+- tune early-recovery thresholds from real installations
 - validate draw-size thresholds against real installations
 - validate weekday/weekend confidence growth
 - tune probability and demand-level thresholds from real data
