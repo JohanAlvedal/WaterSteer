@@ -272,3 +272,135 @@ def test_restore_accepts_legacy_events_without_grouping_fields() -> None:
 
     assert estimate.event_count == 1
     assert estimate.large_event_count == 1
+
+
+def test_early_recovery_cycle_creates_usage_event() -> None:
+    """An unexpectedly early recovery cycle is learned as probable DHW usage."""
+    model = DhwUsageModel()
+    start = _weekday(0, 6)
+
+    model.add_observation(
+        timestamp=start.timestamp(),
+        temperature=55.0,
+        local_datetime=start,
+        heating_active=True,
+        standby_loss_c_per_hour=0.5,
+    )
+    baseline = start + timedelta(minutes=5)
+    model.add_observation(
+        timestamp=baseline.timestamp(),
+        temperature=55.0,
+        local_datetime=baseline,
+        heating_active=False,
+        standby_loss_c_per_hour=0.5,
+    )
+    before_recovery = baseline + timedelta(hours=2)
+    model.add_observation(
+        timestamp=before_recovery.timestamp(),
+        temperature=53.0,
+        local_datetime=before_recovery,
+        heating_active=False,
+        standby_loss_c_per_hour=0.5,
+    )
+    recovery = before_recovery + timedelta(minutes=5)
+    model.add_observation(
+        timestamp=recovery.timestamp(),
+        temperature=53.0,
+        local_datetime=recovery,
+        heating_active=True,
+        standby_loss_c_per_hour=0.5,
+    )
+
+    estimate = model.estimate(now_local=recovery, occupancy=True)
+
+    assert estimate.event_count == 1
+    assert estimate.recovery_event_count == 1
+    assert estimate.direct_event_count == 0
+    assert estimate.usage_detected is True
+
+
+def test_normal_passive_recovery_is_not_usage() -> None:
+    """A recovery cycle consistent with learned standby loss is not usage."""
+    model = DhwUsageModel()
+    start = _weekday(0, 6)
+
+    model.add_observation(
+        timestamp=start.timestamp(),
+        temperature=55.0,
+        local_datetime=start,
+        heating_active=True,
+        standby_loss_c_per_hour=0.5,
+    )
+    baseline = start + timedelta(minutes=5)
+    model.add_observation(
+        timestamp=baseline.timestamp(),
+        temperature=55.0,
+        local_datetime=baseline,
+        heating_active=False,
+        standby_loss_c_per_hour=0.5,
+    )
+    before_recovery = baseline + timedelta(hours=4)
+    model.add_observation(
+        timestamp=before_recovery.timestamp(),
+        temperature=53.0,
+        local_datetime=before_recovery,
+        heating_active=False,
+        standby_loss_c_per_hour=0.5,
+    )
+    recovery = before_recovery + timedelta(minutes=5)
+    model.add_observation(
+        timestamp=recovery.timestamp(),
+        temperature=53.0,
+        local_datetime=recovery,
+        heating_active=True,
+        standby_loss_c_per_hour=0.5,
+    )
+
+    estimate = model.estimate(now_local=recovery, occupancy=True)
+
+    assert estimate.event_count == 0
+    assert estimate.recovery_event_count == 0
+
+
+def test_recovery_does_not_duplicate_recent_direct_draw() -> None:
+    """A recovery shortly after a direct draw must not count the same demand twice."""
+    model = DhwUsageModel()
+    start = _weekday(0, 6)
+
+    model.add_observation(
+        timestamp=start.timestamp(),
+        temperature=55.0,
+        local_datetime=start,
+        heating_active=True,
+        standby_loss_c_per_hour=0.5,
+    )
+    baseline = start + timedelta(minutes=5)
+    model.add_observation(
+        timestamp=baseline.timestamp(),
+        temperature=55.0,
+        local_datetime=baseline,
+        heating_active=False,
+        standby_loss_c_per_hour=0.5,
+    )
+    draw = baseline + timedelta(hours=2)
+    model.add_observation(
+        timestamp=draw.timestamp(),
+        temperature=52.0,
+        local_datetime=draw,
+        heating_active=False,
+        standby_loss_c_per_hour=0.5,
+    )
+    recovery = draw + timedelta(minutes=5)
+    model.add_observation(
+        timestamp=recovery.timestamp(),
+        temperature=52.0,
+        local_datetime=recovery,
+        heating_active=True,
+        standby_loss_c_per_hour=0.5,
+    )
+
+    estimate = model.estimate(now_local=recovery, occupancy=True)
+
+    assert estimate.event_count == 1
+    assert estimate.direct_event_count == 0
+    assert estimate.recovery_event_count == 1
