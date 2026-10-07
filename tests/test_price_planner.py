@@ -63,6 +63,7 @@ def test_low_confidence_prevents_price_planning() -> None:
         current_temperature=48.0,
         comfort_minimum=45.0,
         normal_target=50.0,
+        precharge_target=55.0,
         predicted_autonomy_minutes=360.0,
         autonomy_confidence=30,
         heating_rate_c_per_hour=4.0,
@@ -84,6 +85,7 @@ def test_cheapest_safe_future_window_creates_price_hold() -> None:
         current_temperature=48.0,
         comfort_minimum=45.0,
         normal_target=50.0,
+        precharge_target=55.0,
         predicted_autonomy_minutes=360.0,
         autonomy_confidence=80,
         heating_rate_c_per_hour=4.0,
@@ -112,6 +114,7 @@ def test_current_selected_window_is_shadow_charge_window() -> None:
         current_temperature=48.0,
         comfort_minimum=45.0,
         normal_target=50.0,
+        precharge_target=55.0,
         predicted_autonomy_minutes=180.0,
         autonomy_confidence=80,
         heating_rate_c_per_hour=4.0,
@@ -136,6 +139,7 @@ def test_cheap_price_does_not_force_charge_above_normal_target() -> None:
         current_temperature=52.0,
         comfort_minimum=45.0,
         normal_target=50.0,
+        precharge_target=55.0,
         predicted_autonomy_minutes=600.0,
         autonomy_confidence=80,
         heating_rate_c_per_hour=4.0,
@@ -159,6 +163,7 @@ def test_comfort_minimum_overrides_price() -> None:
         current_temperature=44.5,
         comfort_minimum=45.0,
         normal_target=50.0,
+        precharge_target=55.0,
         predicted_autonomy_minutes=0.0,
         autonomy_confidence=80,
         heating_rate_c_per_hour=4.0,
@@ -180,6 +185,7 @@ def test_missing_future_prices_is_explicit() -> None:
         current_temperature=48.0,
         comfort_minimum=45.0,
         normal_target=50.0,
+        precharge_target=55.0,
         predicted_autonomy_minutes=360.0,
         autonomy_confidence=80,
         heating_rate_c_per_hour=4.0,
@@ -190,3 +196,72 @@ def test_missing_future_prices_is_explicit() -> None:
 
     assert result.status == "unavailable"
     assert result.reason == "future_prices_unavailable"
+
+
+def test_peak_precharge_is_selected_when_margin_cannot_bridge_peak() -> None:
+    """WaterSteer precharges before a peak when safe margin would otherwise expire."""
+    now = datetime(2026, 10, 2, 15, tzinfo=UTC)
+    slots = (
+        _slot(now, 0.6),
+        _slot(now + timedelta(hours=1), 0.7),
+        _slot(now + timedelta(hours=2), 2.5),
+        _slot(now + timedelta(hours=3), 2.7),
+        _slot(now + timedelta(hours=4), 0.8),
+    )
+
+    result = plan_price_window(
+        now=now,
+        current_temperature=49.0,
+        comfort_minimum=45.0,
+        normal_target=50.0,
+        precharge_target=55.0,
+        predicted_autonomy_minutes=210.0,
+        autonomy_confidence=90,
+        heating_rate_c_per_hour=12.0,
+        current_price=0.6,
+        price_slots=slots,
+        minimum_confidence=50,
+    )
+
+    assert result.status == "peak_precharge"
+    assert result.reason == "precharge_needed_to_bridge_price_peak"
+    assert result.next_charge is not None
+    assert result.next_charge < now + timedelta(hours=2)
+    assert result.planned_target == pytest.approx(55.0)
+    assert result.peak_avoidance_active is True
+    assert result.next_peak_start == now + timedelta(hours=2)
+
+
+def test_peak_slots_are_avoided_when_margin_can_bridge_peak() -> None:
+    """A safe margin that spans the peak keeps normal planning out of peak slots."""
+    now = datetime(2026, 10, 2, 15, tzinfo=UTC)
+    slots = (
+        _slot(now, 0.9),
+        _slot(now + timedelta(hours=1), 0.8),
+        _slot(now + timedelta(hours=2), 2.4),
+        _slot(now + timedelta(hours=3), 2.6),
+        _slot(now + timedelta(hours=4), 0.5),
+        _slot(now + timedelta(hours=5), 0.6),
+    )
+
+    result = plan_price_window(
+        now=now,
+        current_temperature=48.0,
+        comfort_minimum=45.0,
+        normal_target=50.0,
+        precharge_target=55.0,
+        predicted_autonomy_minutes=420.0,
+        autonomy_confidence=90,
+        heating_rate_c_per_hour=12.0,
+        current_price=0.9,
+        price_slots=slots,
+        minimum_confidence=50,
+    )
+
+    assert result.next_charge is not None
+    assert not (
+        now + timedelta(hours=2)
+        <= result.next_charge
+        < now + timedelta(hours=4)
+    )
+    assert result.peak_avoidance_active is True
