@@ -228,6 +228,15 @@
       },
       "selected_price": {
         "name": "Selected DHW charge price"
+      },
+      "control_mode": {
+        "name": "Control mode"
+      },
+      "safe_margin": {
+        "name": "Safe DHW margin"
+      },
+      "safe_margin_confidence": {
+        "name": "Safe margin confidence"
       }
     },
     "binary_sensor": {
