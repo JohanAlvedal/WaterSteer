@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from statistics import median
 from typing import Any
 
 MIN_PLANNING_CONFIDENCE = 50
 MIN_RESERVE_MINUTES = 30
 MAX_PRICE_HORIZON_HOURS = 48
+PEAK_PRICE_MULTIPLIER = 1.5
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,6 +39,10 @@ class PricePlan:
     planning_deadline: datetime | None
     confidence: int
     window_active_now: bool
+    next_peak_start: datetime | None
+    next_peak_end: datetime | None
+    next_peak_price: float | None
+    peak_avoidance_active: bool
 
 
 def extract_price_slots(
@@ -82,6 +88,7 @@ def plan_price_window(
     current_temperature: float | None,
     comfort_minimum: float,
     normal_target: float,
+    precharge_target: float,
     predicted_autonomy_minutes: float | None,
     autonomy_confidence: int,
     heating_rate_c_per_hour: float | None,
@@ -113,6 +120,10 @@ def plan_price_window(
             planning_deadline=None,
             confidence=autonomy_confidence,
             window_active_now=True,
+            next_peak_start=None,
+            next_peak_end=None,
+            next_peak_price=None,
+            peak_avoidance_active=False,
         )
 
     if autonomy_confidence < minimum_confidence:
@@ -151,6 +162,11 @@ def plan_price_window(
             confidence=autonomy_confidence,
         )
 
+    peak = _find_next_peak(price_slots, now)
+    peak_start = peak[0] if peak is not None else None
+    peak_end = peak[1] if peak is not None else None
+    peak_price = peak[2] if peak is not None else None
+
     temperature_deficit = max(0.0, normal_target - current_temperature)
     charge_minutes = temperature_deficit / heating_rate_c_per_hour * 60
 
@@ -169,8 +185,60 @@ def plan_price_window(
     usable_autonomy = max(0.0, predicted_autonomy_minutes - reserve_minutes)
     deadline = now + timedelta(minutes=usable_autonomy)
 
+    if (
+        peak is not None
+        and peak_start is not None
+        and peak_end is not None
+        and peak_start > now
+        and deadline < peak_end
+    ):
+        precharge_deficit = max(0.0, precharge_target - current_temperature)
+        precharge_minutes = max(
+            60 / heating_rate_c_per_hour,
+            precharge_deficit / heating_rate_c_per_hour * 60,
+        )
+        pre_peak_slots = tuple(slot for slot in price_slots if slot.end <= peak_start)
+        precharge_window = _cheapest_contiguous_window(
+            slots=pre_peak_slots,
+            now=now,
+            deadline=peak_start,
+            required_minutes=precharge_minutes,
+        )
+        if precharge_window is not None:
+            window_start, window_end, weighted_price = precharge_window
+            savings = None
+            if current_price is not None:
+                savings = current_price - weighted_price
+            return PricePlan(
+                status="peak_precharge",
+                reason="precharge_needed_to_bridge_price_peak",
+                next_charge=window_start,
+                charge_end=window_end,
+                expected_charge_minutes=precharge_minutes,
+                planned_target=precharge_target,
+                selected_price=weighted_price,
+                current_price=current_price,
+                savings_vs_current=savings,
+                price_slot_count=len(price_slots),
+                planning_deadline=deadline,
+                confidence=autonomy_confidence,
+                window_active_now=window_start <= now < window_end,
+                next_peak_start=peak_start,
+                next_peak_end=peak_end,
+                next_peak_price=peak_price,
+                peak_avoidance_active=True,
+            )
+
+    candidate_slots = price_slots
+    if peak is not None and peak_start is not None and peak_end is not None:
+        candidate_slots = tuple(
+            slot
+            for slot in price_slots
+            if slot.end <= peak_start or slot.start >= peak_end
+        )
+
     window = _cheapest_contiguous_window(
-        slots=price_slots,
+        slots=candidate_slots,
         now=now,
         deadline=deadline,
         required_minutes=planning_charge_minutes,
@@ -190,6 +258,10 @@ def plan_price_window(
             planning_deadline=deadline,
             confidence=autonomy_confidence,
             window_active_now=False,
+            next_peak_start=peak_start,
+            next_peak_end=peak_end,
+            next_peak_price=peak_price,
+            peak_avoidance_active=peak is not None,
         )
 
     window_start, window_end, weighted_price = window
@@ -224,7 +296,40 @@ def plan_price_window(
         planning_deadline=deadline,
         confidence=autonomy_confidence,
         window_active_now=active_now,
+        next_peak_start=peak_start,
+        next_peak_end=peak_end,
+        next_peak_price=peak_price,
+        peak_avoidance_active=peak is not None,
     )
+
+
+def _find_next_peak(
+    slots: tuple[PriceSlot, ...],
+    now: datetime,
+) -> tuple[datetime, datetime, float] | None:
+    """Return the next contiguous price peak relative to the forecast median."""
+    future = [slot for slot in slots if slot.end > now]
+    if len(future) < 3:
+        return None
+
+    baseline = median(slot.price for slot in future)
+    threshold = baseline * PEAK_PRICE_MULTIPLIER
+    peak_slots = [slot for slot in future if slot.price >= threshold]
+    if not peak_slots:
+        return None
+
+    first = peak_slots[0]
+    start = first.start
+    end = first.end
+    prices = [first.price]
+
+    for slot in peak_slots[1:]:
+        if slot.start > end + timedelta(seconds=1):
+            break
+        end = max(end, slot.end)
+        prices.append(slot.price)
+
+    return start, end, sum(prices) / len(prices)
 
 
 def _cheapest_contiguous_window(
@@ -394,4 +499,8 @@ def _empty_plan(
         planning_deadline=None,
         confidence=confidence,
         window_active_now=False,
+        next_peak_start=None,
+        next_peak_end=None,
+        next_peak_price=None,
+        peak_avoidance_active=False,
     )
