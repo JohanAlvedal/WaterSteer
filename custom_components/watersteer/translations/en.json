@@ -237,6 +237,9 @@
       },
       "safe_margin_confidence": {
         "name": "Safe margin confidence"
+      },
+      "control_request": {
+        "name": "Control request"
       }
     },
     "binary_sensor": {
