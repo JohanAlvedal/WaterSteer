@@ -125,6 +125,22 @@ SENSORS: tuple[WaterSteerSensorEntityDescription, ...] = (
         value_fn=lambda data: data["autonomy_confidence"],
     ),
     WaterSteerSensorEntityDescription(
+        key="safe_margin",
+        translation_key="safe_margin",
+        device_class=SensorDeviceClass.DURATION,
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+        value_fn=lambda data: data["safe_margin_minutes"],
+    ),
+    WaterSteerSensorEntityDescription(
+        key="safe_margin_confidence",
+        translation_key="safe_margin_confidence",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda data: data["safe_margin_confidence"],
+    ),
+    WaterSteerSensorEntityDescription(
         key="price_plan_status",
         translation_key="price_plan_status",
         value_fn=lambda data: data["price_plan_status"],
@@ -260,6 +276,8 @@ class WaterSteerSensor(
             "predicted_autonomy",
             "predicted_temperature_6h",
             "autonomy_confidence",
+            "safe_margin",
+            "safe_margin_confidence",
         }:
             return {
                 "observation_count": data["thermal_observation_count"],
@@ -272,6 +290,9 @@ class WaterSteerSensor(
                 "autonomy_basis": data["autonomy_basis"],
                 "demand_adjusted": data["autonomy_demand_adjusted"],
                 "usage_learning_confidence": data["usage_learning_confidence"],
+                "safe_margin_source": data["safe_margin_source"],
+                "safe_margin_usage_adjusted": data["safe_margin_usage_adjusted"],
+                "safe_margin_reason": data["safe_margin_reason"],
             }
 
         if self.entity_description.key in {
@@ -291,6 +312,10 @@ class WaterSteerSensor(
                 "price_slot_count": data["price_plan_slot_count"],
                 "planner_confidence": data["price_plan_confidence"],
                 "window_active_now": data["price_plan_window_active_now"],
+                "next_peak_start": data["price_plan_next_peak_start"],
+                "next_peak_end": data["price_plan_next_peak_end"],
+                "next_peak_price": data["price_plan_next_peak_price"],
+                "peak_avoidance_active": data["price_plan_peak_avoidance_active"],
                 "shadow_mode": data["shadow_mode"],
             }
 
