@@ -3,10 +3,65 @@
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 
 from .coordinator import WaterSteerDataUpdateCoordinator
 
 PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.BINARY_SENSOR]
+
+_ADVANCED_SENSOR_KEYS = (
+    "decision",
+    "standby_loss",
+    "heating_rate",
+    "projected_temperature_1h",
+    "time_to_comfort",
+    "learning_confidence",
+    "passive_autonomy",
+    "predicted_autonomy",
+    "predicted_temperature_6h",
+    "autonomy_confidence",
+    "safe_margin_confidence",
+    "expected_charge_duration",
+    "planned_target",
+    "selected_price",
+    "usage_probability_next_6h",
+    "expected_usage_drop_next_6h",
+    "demand_level",
+    "next_expected_usage",
+    "typical_usage_drop",
+    "usage_learning_confidence",
+)
+
+_ADVANCED_BINARY_SENSOR_KEYS = (
+    "dhw_request",
+    "usage_detected",
+)
+
+
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Migrate older WaterSteer config entries."""
+    if entry.version < 2:
+        registry = er.async_get(hass)
+
+        for platform, keys in (
+            (Platform.SENSOR, _ADVANCED_SENSOR_KEYS),
+            (Platform.BINARY_SENSOR, _ADVANCED_BINARY_SENSOR_KEYS),
+        ):
+            for key in keys:
+                entity_id = registry.async_get_entity_id(
+                    platform,
+                    "watersteer",
+                    f"{entry.entry_id}_{key}",
+                )
+                if entity_id is not None:
+                    registry.async_update_entity(
+                        entity_id,
+                        disabled_by=er.RegistryEntryDisabler.INTEGRATION,
+                    )
+
+        hass.config_entries.async_update_entry(entry, version=2)
+
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
