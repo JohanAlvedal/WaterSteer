@@ -162,11 +162,13 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def _async_update_data(self) -> dict[str, Any]:
         """Read inputs, update learning, and calculate advisory decisions."""
         config = self._config()
-        temperature_entity = config[CONF_DHW_TEMPERATURE_ENTITY]
+        temperature_entity = config.get(CONF_DHW_TEMPERATURE_ENTITY)
         price_entity = config[CONF_ELECTRICITY_PRICE_ENTITY]
         occupancy_entity = config.get(CONF_OCCUPANCY_ENTITY)
 
-        temperature_state = self.hass.states.get(temperature_entity)
+        temperature_state = (
+            self.hass.states.get(temperature_entity) if temperature_entity else None
+        )
         price_state = self.hass.states.get(price_entity)
         occupancy_state = (
             self.hass.states.get(occupancy_entity) if occupancy_entity else None
