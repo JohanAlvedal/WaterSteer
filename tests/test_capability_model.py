@@ -1,7 +1,6 @@
 """Tests for WaterSteer's capability-based safe margin model."""
 
 import pytest
-
 from custom_components.watersteer.capability_model import estimate_safe_margin
 
 
