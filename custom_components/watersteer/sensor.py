@@ -37,6 +37,11 @@ SENSORS: tuple[WaterSteerSensorEntityDescription, ...] = (
         value_fn=lambda data: data["mode"],
     ),
     WaterSteerSensorEntityDescription(
+        key="control_mode",
+        translation_key="control_mode",
+        value_fn=lambda data: data["control_mode"],
+    ),
+    WaterSteerSensorEntityDescription(
         key="decision",
         translation_key="decision",
         value_fn=lambda data: data["decision"],
@@ -316,7 +321,7 @@ class WaterSteerSensor(
                 "next_peak_end": data["price_plan_next_peak_end"],
                 "next_peak_price": data["price_plan_next_peak_price"],
                 "peak_avoidance_active": data["price_plan_peak_avoidance_active"],
-                "shadow_mode": data["shadow_mode"],
+                "control_mode": data["control_mode"],
             }
 
         if self.entity_description.key in {
