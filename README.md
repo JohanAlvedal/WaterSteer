@@ -172,41 +172,36 @@ A `temperature_hold` only becomes an actual WaterSteer `DHW allowed = OFF` shado
 
 ## Home Assistant entities
 
-Current entities include:
+WaterSteer keeps the default entity surface intentionally small.
+
+Enabled by default:
 
 ```text
 sensor.watersteer_mode
-sensor.watersteer_decision
+sensor.watersteer_control_mode
+sensor.watersteer_control_request
 sensor.watersteer_dhw_temperature
-
-sensor.watersteer_standby_heat_loss
-sensor.watersteer_heating_rate
-sensor.watersteer_projected_temperature_in_1_hour
-sensor.watersteer_estimated_time_to_comfort_minimum
-sensor.watersteer_thermal_learning_confidence
-sensor.watersteer_passive_dhw_autonomy
-sensor.watersteer_predicted_dhw_autonomy
-sensor.watersteer_predicted_dhw_temperature_in_6_hours
-sensor.watersteer_dhw_autonomy_confidence
-
+sensor.watersteer_safe_dhw_margin
 sensor.watersteer_dhw_price_plan_status
 sensor.watersteer_next_planned_dhw_charge
-sensor.watersteer_expected_dhw_charge_duration
-sensor.watersteer_planned_dhw_target
-sensor.watersteer_selected_dhw_charge_price
-
-sensor.watersteer_dhw_usage_probability_next_6_hours
-sensor.watersteer_expected_dhw_usage_impact_next_6_hours
-sensor.watersteer_dhw_demand_level
-sensor.watersteer_next_expected_dhw_usage
-sensor.watersteer_typical_dhw_usage_drop
-sensor.watersteer_usage_learning_confidence
 
 binary_sensor.watersteer_dhw_allowed
-binary_sensor.watersteer_dhw_request
 binary_sensor.watersteer_force_request
-binary_sensor.watersteer_dhw_usage_detected
 ```
+
+`sensor.watersteer_control_request` is the single human-readable control intent:
+
+```text
+hold
+normal
+heat
+force_heat
+precharge
+```
+
+Advanced learning, usage, autonomy, planner-detail and diagnostic entities are still available but are disabled by default in the Home Assistant entity registry. They can be enabled individually when troubleshooting or developing WaterSteer.
+
+Existing Home Assistant installations keep their current entity-registry choices; changing the integration default does not forcibly disable entities that a user already has enabled.
 
 Entity IDs may receive Home Assistant suffixes if conflicting entities already exist.
 
