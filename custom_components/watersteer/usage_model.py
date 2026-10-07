@@ -13,6 +13,7 @@ MAX_HISTORY_DAYS = 42
 MAX_EVENT_SEGMENT_SECONDS = 30 * 60
 USAGE_DROP_MIN_C = 1.5
 USAGE_DROP_RATE_MIN_C_PER_HOUR = 3.0
+INFERRED_HEATING_RATE_MIN_C_PER_HOUR = 0.75
 EVENT_GROUP_GAP_SECONDS = 20 * 60
 RECOVERY_DUPLICATE_GAP_SECONDS = 60 * 60
 RECOVERY_MIN_BASELINE_AGE_SECONDS = 45 * 60
@@ -119,18 +120,27 @@ class DhwUsageModel:
             if timestamp - last.timestamp < MIN_SAMPLE_INTERVAL_SECONDS:
                 return False
 
+        previous = self._samples[-1] if self._samples else None
+        resolved_heating_active = self._resolve_heating_active(
+            previous=previous,
+            timestamp=timestamp,
+            temperature=temperature,
+            explicit=heating_active,
+        )
         sample = UsageSample(
             timestamp=timestamp,
             temperature=temperature,
             day_type=self._day_type(local_datetime),
             hour=local_datetime.hour,
             date_key=local_datetime.date().isoformat(),
-            heating_active=heating_active,
+            heating_active=resolved_heating_active,
         )
 
-        if self._samples:
-            previous = self._samples[-1]
-            if heating_active is True and previous.heating_active is not True:
+        if previous is not None:
+            if (
+                resolved_heating_active is True
+                and previous.heating_active is not True
+            ):
                 self._detect_recovery_event(
                     current=sample,
                     standby_loss_c_per_hour=standby_loss_c_per_hour,
@@ -140,6 +150,30 @@ class DhwUsageModel:
         self._samples.append(sample)
         self._purge_old(timestamp)
         return True
+
+    @staticmethod
+    def _resolve_heating_active(
+        *,
+        previous: UsageSample | None,
+        timestamp: float,
+        temperature: float,
+        explicit: bool | None,
+    ) -> bool | None:
+        """Use an explicit heating signal or infer heating from temperature rise."""
+        if explicit is not None:
+            return explicit
+        if previous is None:
+            return None
+
+        elapsed_seconds = timestamp - previous.timestamp
+        if elapsed_seconds <= 0 or elapsed_seconds > MAX_EVENT_SEGMENT_SECONDS:
+            return None
+
+        rise_c = temperature - previous.temperature
+        rise_rate = rise_c / (elapsed_seconds / 3600)
+        if rise_rate >= INFERRED_HEATING_RATE_MIN_C_PER_HOUR:
+            return True
+        return False
 
     def _detect_usage_segment(
         self,
