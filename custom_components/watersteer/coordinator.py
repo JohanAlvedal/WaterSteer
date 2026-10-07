@@ -160,7 +160,7 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return {**self.entry.data, **self.entry.options}
 
     async def _async_update_data(self) -> dict[str, Any]:
-        """Read inputs, update learning, and calculate shadow decisions."""
+        """Read inputs, update learning, and calculate advisory decisions."""
         config = self._config()
         temperature_entity = config[CONF_DHW_TEMPERATURE_ENTITY]
         price_entity = config[CONF_ELECTRICITY_PRICE_ENTITY]
@@ -304,7 +304,7 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return {
             "mode": mode,
             "data_valid": data_valid,
-            "shadow_mode": True,
+            "control_mode": "advisory",
             "system_type": config[CONF_SYSTEM_TYPE],
             "decision": decision.classification,
             "decision_reason": decision.reason,
