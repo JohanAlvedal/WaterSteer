@@ -292,6 +292,23 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             minimum_confidence=minimum_thermal_confidence,
         )
 
+        if decision.force_request:
+            control_request = "force_heat"
+        elif price_plan.status == "peak_precharge":
+            control_request = "precharge"
+        elif decision.request or price_plan.status in {
+            "comfort_recovery",
+            "price_charge_window",
+        }:
+            control_request = "heat"
+        elif not decision.allowed or price_plan.status in {
+            "price_hold",
+            "temperature_hold",
+        }:
+            control_request = "hold"
+        else:
+            control_request = "normal"
+
         if (thermal_observation_added or usage_observation_added) and (
             self._last_store_save is None
             or now - self._last_store_save >= _STORAGE_SAVE_INTERVAL
@@ -310,6 +327,7 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "system_type": config[CONF_SYSTEM_TYPE],
             "decision": decision.classification,
             "decision_reason": decision.reason,
+            "control_request": control_request,
             "raw_temperature_decision": raw_decision.classification,
             "dhw_allowed": decision.allowed,
             "dhw_request": decision.request,
