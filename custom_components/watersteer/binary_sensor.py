@@ -97,7 +97,7 @@ class WaterSteerDecisionBinarySensor(
         """Return decision and learning details useful for diagnostics."""
         data = self.coordinator.data
         return {
-            "shadow_mode": data["shadow_mode"],
+            "control_mode": data["control_mode"],
             "decision": data["decision"],
             "reason": data["decision_reason"],
             "raw_temperature_decision": data["raw_temperature_decision"],
