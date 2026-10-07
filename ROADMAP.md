@@ -110,6 +110,9 @@ Status: **foundation implemented / cycle and simple estimators next**
 - DHW temperature is optional in configuration
 - standalone physical control is optional in configuration
 - advisory operation is the default when no active control is selected
+- simplified default Home Assistant entity surface
+- advanced learning and diagnostic entities disabled by default
+- unified `control_request`: `hold`, `normal`, `heat`, `force_heat`, or `precharge`
 
 ### Thermal autonomy
 
