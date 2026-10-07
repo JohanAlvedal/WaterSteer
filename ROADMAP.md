@@ -74,6 +74,7 @@ Status: **implemented in first explainable version / validation next**
 Implemented improvements:
 
 - hybrid usage detection using both direct temperature drops and early recovery cycles
+- infer DHW heating from temperature rise when no explicit DHW-active signal is available
 - compare recovery timing against learned standby loss before inferring usage
 - suppress duplicate recovery events after a recent direct draw
 - expose direct vs recovery event diagnostics
