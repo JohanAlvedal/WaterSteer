@@ -184,7 +184,7 @@ def _heat_pump_schema() -> vol.Schema:
 class WaterSteerConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for WaterSteer."""
 
-    VERSION = 1
+    VERSION = 2
 
     def __init__(self) -> None:
         """Initialize the config flow."""
