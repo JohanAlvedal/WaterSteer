@@ -35,6 +35,7 @@ BINARY_SENSORS: tuple[WaterSteerBinarySensorDescription, ...] = (
     WaterSteerBinarySensorDescription(
         key="dhw_request",
         translation_key="dhw_request",
+        entity_registry_enabled_default=False,
         data_key="dhw_request",
     ),
     WaterSteerBinarySensorDescription(
@@ -45,6 +46,7 @@ BINARY_SENSORS: tuple[WaterSteerBinarySensorDescription, ...] = (
     WaterSteerBinarySensorDescription(
         key="usage_detected",
         translation_key="usage_detected",
+        entity_registry_enabled_default=False,
         data_key="usage_detected",
     ),
 )
