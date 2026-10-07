@@ -168,7 +168,8 @@ def test_comfort_minimum_overrides_price() -> None:
     )
 
     assert result.status == "comfort_recovery"
-    assert result.next_charge == now
+    assert result.next_charge is None
+    assert result.window_active_now is True
 
 
 def test_missing_future_prices_is_explicit() -> None:
