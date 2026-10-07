@@ -260,8 +260,6 @@ def test_peak_slots_are_avoided_when_margin_can_bridge_peak() -> None:
 
     assert result.next_charge is not None
     assert not (
-        now + timedelta(hours=2)
-        <= result.next_charge
-        < now + timedelta(hours=4)
+        now + timedelta(hours=2) <= result.next_charge < now + timedelta(hours=4)
     )
     assert result.peak_avoidance_active is True
