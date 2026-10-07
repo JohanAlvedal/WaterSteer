@@ -25,12 +25,12 @@ Comfort and safety always take priority over price optimization.
 
 ## Current capabilities
 
-WaterSteer currently runs in **shadow mode**. It observes, learns, classifies, and exposes decisions, but does not execute physical DHW control yet.
+WaterSteer currently runs in **advisory mode** unless active control is explicitly added in a later step. Planning and learning run normally; the absence of configured control is not treated as a special shadow state.
 
 ### Configuration
 
 - Select standalone water heater or heat-pump-integrated DHW
-- Select DHW temperature sensor
+- Optionally select a DHW temperature sensor
 - Select electricity price sensor
 - Optional occupancy input:
   - binary sensor
@@ -42,6 +42,18 @@ WaterSteer currently runs in **shadow mode**. It observes, learns, classifies, a
 - Configure optional heat-pump DHW availability and production-active signals
 - Configure generic Boost, Block, and Normal actions for future active control
 - Reconfigure everything through Home Assistant Options Flow
+
+### Capability-based estimation
+
+WaterSteer is moving to a capability-based architecture. The planner consumes one common concept: **safe DHW margin**.
+
+The best available estimator is selected without weakening a stronger model just because an optional model is immature:
+
+- `thermal` when DHW temperature and learned thermal behaviour are available
+- `cycle` for future cycle/runtime learning when temperature is unavailable
+- `simple` for a future conservative schedule/feedback model with minimal telemetry
+
+Usage learning is an optional adjustment to thermal margin, not a hard dependency. A weak usage model must not reduce confidence in a strong thermal model.
 
 ### Thermal learning
 
@@ -60,7 +72,7 @@ Thermal history survives Home Assistant restarts.
 
 ### Predicted autonomy
 
-WaterSteer now calculates DHW autonomy in shadow mode.
+WaterSteer now calculates DHW autonomy in advisory mode.
 
 It exposes both:
 
@@ -234,8 +246,11 @@ autonomy_model.py
 controller.py
   -> deterministic temperature decisions and safety guards
 
+capability_model.py
+  -> select the best available safe-margin estimator
+
 price_planner.py
-  -> safe shadow planning across future electricity-price intervals
+  -> safe advisory planning, peak avoidance and precharge timing
 
 actions.py
   -> physical output execution (future active-control step)
@@ -247,7 +262,7 @@ The learning models estimate system behaviour. They do not rewrite the controlle
 
 ## Shadow price planning
 
-WaterSteer now includes an explainable price planner that runs in shadow mode only.
+WaterSteer includes an explainable advisory price planner. It actively identifies expensive price peaks and tries to bridge them safely by waiting through the peak or precharging before it when necessary.
 
 The planner combines:
 
@@ -259,7 +274,7 @@ The planner combines:
 - future electricity-price intervals
 - a safety reserve before the predicted comfort deadline
 
-It selects the cheapest contiguous charge window that safely fits before the predicted comfort minimum is reached.
+It selects a safe charge window before the predicted margin expires, avoids detected price peaks, and may select a precharge window before a peak when that is required to bridge the expensive period.
 
 Important safeguards:
 
@@ -269,6 +284,8 @@ Important safeguards:
 - the planner keeps a reserve before the predicted comfort deadline
 - reaching the comfort minimum always overrides price
 - cheap electricity alone never creates a charge request when the normal DHW target is already satisfied
+- clear price peaks are treated as periods to avoid whenever the safe margin allows it
+- precharge before a peak is preferred when the available margin would otherwise expire inside the expensive period
 - no Block, Normal, or Boost action is executed
 
 Supported future-price attribute shapes currently include timestamped `raw_today` / `raw_tomorrow`, numeric `today` / `tomorrow` arrays, and timestamped `prices`, `price_data`, or `forecast` lists.
@@ -293,11 +310,11 @@ The same temperature on a weekend with high learned usage probability may result
 
 ## Active control
 
-Physical Block / Normal / Boost actions are intentionally not enabled yet.
+Physical Block / Normal / Boost actions are not executed unless a future active-control mode is explicitly enabled. With no active control selected, WaterSteer simply remains advisory.
 
 Active control will only be introduced after:
 
-- thermal decisions have been validated in shadow mode
+- thermal decisions have been validated in advisory mode
 - usage learning has been validated
 - future-price planning is stable
 - minimum runtime, cooldown and anti-cycling rules are implemented
@@ -331,4 +348,4 @@ WaterSteer shall not:
 
 ## Project status
 
-WaterSteer is under active development and should currently be treated as experimental shadow-control software.
+WaterSteer is under active development and should currently be treated as experimental advisory software.
