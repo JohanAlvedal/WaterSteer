@@ -11,7 +11,7 @@ from custom_components.watersteer.binary_sensor import (
 def _coordinator_data() -> dict:
     """Return representative WaterSteer shadow-control data."""
     return {
-        "shadow_mode": True,
+        "control_mode": "advisory",
         "decision": "learning_guard",
         "decision_reason": "thermal_confidence_below_minimum",
         "raw_temperature_decision": "temperature_hold",
