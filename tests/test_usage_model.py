@@ -412,3 +412,54 @@ def test_recovery_does_not_duplicate_recent_direct_draw() -> None:
     assert estimate.event_count == 1
     assert estimate.direct_event_count == 1
     assert estimate.recovery_event_count == 0
+
+
+def test_recovery_learning_infers_heating_without_explicit_signal() -> None:
+    """Recovery learning works when DHW heating must be inferred from temperature."""
+    model = DhwUsageModel()
+    start = _weekday(0, 6)
+
+    model.add_observation(
+        timestamp=start.timestamp(),
+        temperature=54.0,
+        local_datetime=start,
+        heating_active=None,
+        standby_loss_c_per_hour=0.5,
+    )
+    heating = start + timedelta(minutes=5)
+    model.add_observation(
+        timestamp=heating.timestamp(),
+        temperature=55.5,
+        local_datetime=heating,
+        heating_active=None,
+        standby_loss_c_per_hour=0.5,
+    )
+    baseline = heating + timedelta(minutes=5)
+    model.add_observation(
+        timestamp=baseline.timestamp(),
+        temperature=55.5,
+        local_datetime=baseline,
+        heating_active=None,
+        standby_loss_c_per_hour=0.5,
+    )
+    before_recovery = baseline + timedelta(hours=2)
+    model.add_observation(
+        timestamp=before_recovery.timestamp(),
+        temperature=53.5,
+        local_datetime=before_recovery,
+        heating_active=None,
+        standby_loss_c_per_hour=0.5,
+    )
+    recovery = before_recovery + timedelta(minutes=5)
+    model.add_observation(
+        timestamp=recovery.timestamp(),
+        temperature=54.5,
+        local_datetime=recovery,
+        heating_active=None,
+        standby_loss_c_per_hour=0.5,
+    )
+
+    estimate = model.estimate(now_local=recovery, occupancy=True)
+
+    assert estimate.event_count == 1
+    assert estimate.recovery_event_count == 1
