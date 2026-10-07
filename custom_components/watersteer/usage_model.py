@@ -140,6 +140,7 @@ class DhwUsageModel:
             if resolved_heating_active is True and previous.heating_active is not True:
                 self._detect_recovery_event(
                     current=sample,
+                    pre_heating_temperature=previous.temperature,
                     standby_loss_c_per_hour=standby_loss_c_per_hour,
                 )
             self._detect_usage_segment(previous, sample)
@@ -168,9 +169,7 @@ class DhwUsageModel:
 
         rise_c = temperature - previous.temperature
         rise_rate = rise_c / (elapsed_seconds / 3600)
-        if rise_rate >= INFERRED_HEATING_RATE_MIN_C_PER_HOUR:
-            return True
-        return False
+        return rise_rate >= INFERRED_HEATING_RATE_MIN_C_PER_HOUR
 
     def _detect_usage_segment(
         self,
@@ -228,6 +227,7 @@ class DhwUsageModel:
         self,
         *,
         current: UsageSample,
+        pre_heating_temperature: float,
         standby_loss_c_per_hour: float | None,
     ) -> None:
         """Infer usage from an unexpectedly early DHW recovery cycle."""
@@ -246,7 +246,7 @@ class DhwUsageModel:
         ):
             return
 
-        temperature_drop = baseline.temperature - current.temperature
+        temperature_drop = baseline.temperature - pre_heating_temperature
         if temperature_drop <= 0:
             return
 
