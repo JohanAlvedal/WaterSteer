@@ -21,6 +21,7 @@ from homeassistant.util import dt as dt_util
 from homeassistant.util.unit_conversion import TemperatureConverter
 
 from .autonomy_model import estimate_autonomy
+from .capability_model import estimate_safe_margin
 from .const import (
     CONF_ABSOLUTE_MINIMUM,
     CONF_COMFORT_MINIMUM,
@@ -256,6 +257,12 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             usage_confidence=usage.confidence,
             usage_forecast=usage.forecast,
         )
+        safe_margin = estimate_safe_margin(
+            passive_autonomy_minutes=autonomy.passive_minutes,
+            predicted_autonomy_minutes=autonomy.predicted_minutes,
+            thermal_confidence=thermal.loss_confidence,
+            usage_confidence=usage.confidence,
+        )
         price_slots = extract_price_slots(
             now=now_local,
             attributes=(
@@ -267,8 +274,8 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             current_temperature=dhw_temperature,
             comfort_minimum=thresholds.comfort_minimum,
             normal_target=thresholds.normal_target,
-            predicted_autonomy_minutes=autonomy.predicted_minutes,
-            autonomy_confidence=autonomy.confidence,
+            predicted_autonomy_minutes=safe_margin.minutes,
+            autonomy_confidence=safe_margin.confidence,
             heating_rate_c_per_hour=thermal.heating_rate_c_per_hour,
             current_price=electricity_price,
             price_slots=price_slots,
@@ -341,6 +348,11 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "autonomy_confidence": autonomy.confidence,
             "autonomy_basis": autonomy.basis,
             "autonomy_demand_adjusted": autonomy.demand_adjusted,
+            "safe_margin_minutes": safe_margin.minutes,
+            "safe_margin_confidence": safe_margin.confidence,
+            "safe_margin_source": safe_margin.source,
+            "safe_margin_usage_adjusted": safe_margin.usage_adjusted,
+            "safe_margin_reason": safe_margin.reason,
             "learning_confidence": thermal.loss_confidence,
             "heating_confidence": thermal.heating_confidence,
             "thermal_observation_count": thermal.observation_count,
