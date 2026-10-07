@@ -97,7 +97,22 @@ Next validation work:
 - improve recurring demand-window detection beyond one-hour buckets
 - optionally learn holiday/away behaviour
 
-## 0.4 — Predicted autonomy
+## 0.4 — Capability-based safe margin
+
+Status: **foundation implemented / cycle and simple estimators next**
+
+- unified `safe_margin` interface for the planner
+- thermal estimator preferred when temperature data is available
+- weak usage learning no longer reduces strong thermal confidence
+- usage adjustment only applied after its own confidence threshold
+- cycle estimator interface reserved for installations without temperature
+- simple estimator interface reserved for minimal-telemetry installations
+- DHW temperature is optional in configuration
+- standalone physical control is optional in configuration
+- advisory operation is the default when no active control is selected
+
+### Thermal autonomy
+
 
 Status: **implemented in shadow mode / validation next**
 
@@ -117,9 +132,9 @@ Next validation work:
 - evaluate conservative handling of expected demand within hourly buckets
 - extend beyond the current six-hour learned demand horizon
 
-## 0.5 — Price planner
+## 0.5 — Price planner and peak avoidance
 
-Status: **implemented in shadow mode / field validation next**
+Status: **advisory implementation in progress / field validation next**
 
 The price planner combines:
 
@@ -143,7 +158,7 @@ sensor.watersteer_planned_dhw_target
 sensor.watersteer_selected_dhw_charge_price
 ```
 
-Shadow plan states:
+Advisory plan states:
 
 ```text
 learning
@@ -151,6 +166,7 @@ unavailable
 temperature_hold
 price_hold
 price_charge_window
+peak_precharge
 comfort_recovery
 normal_operation
 ```
@@ -165,7 +181,10 @@ Rules:
 - the selected charge window must fit before the predicted comfort deadline
 - a safety reserve is kept before that deadline
 - a learned DHW heating rate is required for timed price planning
-- no physical control action is executed
+- no physical control action is executed unless active control is explicitly enabled
+- detect clear price peaks relative to the future-price baseline
+- avoid planning normal charge windows inside detected peaks
+- precharge before a peak when the safe margin would otherwise expire during the peak
 
 Field-validation focus before active control:
 
@@ -191,7 +210,7 @@ Status: **not yet enabled**
 - fail-open behaviour
 - action result diagnostics
 
-Active control must remain disabled until shadow planning is considered stable.
+Active control is a separate explicit mode. Advisory planning remains fully functional without selecting any physical control path.
 
 ## 0.7 — PumpSteer cooperation
 
