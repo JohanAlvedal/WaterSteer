@@ -73,7 +73,7 @@ def _primary_schema() -> vol.Schema:
                     mode=SelectSelectorMode.LIST,
                 )
             ),
-            vol.Required(CONF_DHW_TEMPERATURE_ENTITY): EntitySelector(
+            vol.Optional(CONF_DHW_TEMPERATURE_ENTITY): EntitySelector(
                 EntitySelectorConfig(
                     domain="sensor",
                     device_class="temperature",
@@ -151,7 +151,7 @@ def _standalone_schema() -> vol.Schema:
     """Return the standalone water-heater control schema."""
     return vol.Schema(
         {
-            vol.Required(CONF_STANDALONE_CONTROL_SWITCH): EntitySelector(
+            vol.Optional(CONF_STANDALONE_CONTROL_SWITCH): EntitySelector(
                 EntitySelectorConfig(domain="switch")
             ),
             vol.Optional(CONF_STANDALONE_POWER_SENSOR): EntitySelector(
@@ -231,7 +231,7 @@ class WaterSteerConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id="sensors",
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_DHW_TEMPERATURE_ENTITY): EntitySelector(
+                    vol.Optional(CONF_DHW_TEMPERATURE_ENTITY): EntitySelector(
                         EntitySelectorConfig(
                             domain="sensor",
                             device_class="temperature",
