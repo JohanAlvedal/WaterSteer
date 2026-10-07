@@ -44,7 +44,13 @@ SENSORS: tuple[WaterSteerSensorEntityDescription, ...] = (
     WaterSteerSensorEntityDescription(
         key="decision",
         translation_key="decision",
+        entity_registry_enabled_default=False,
         value_fn=lambda data: data["decision"],
+    ),
+    WaterSteerSensorEntityDescription(
+        key="control_request",
+        translation_key="control_request",
+        value_fn=lambda data: data["control_request"],
     ),
     WaterSteerSensorEntityDescription(
         key="dhw_temperature",
@@ -57,6 +63,7 @@ SENSORS: tuple[WaterSteerSensorEntityDescription, ...] = (
     WaterSteerSensorEntityDescription(
         key="standby_loss",
         translation_key="standby_loss",
+        entity_registry_enabled_default=False,
         native_unit_of_measurement="°C/h",
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=2,
@@ -65,6 +72,7 @@ SENSORS: tuple[WaterSteerSensorEntityDescription, ...] = (
     WaterSteerSensorEntityDescription(
         key="heating_rate",
         translation_key="heating_rate",
+        entity_registry_enabled_default=False,
         native_unit_of_measurement="°C/h",
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=2,
@@ -73,6 +81,7 @@ SENSORS: tuple[WaterSteerSensorEntityDescription, ...] = (
     WaterSteerSensorEntityDescription(
         key="projected_temperature_1h",
         translation_key="projected_temperature_1h",
+        entity_registry_enabled_default=False,
         device_class=SensorDeviceClass.TEMPERATURE,
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         state_class=SensorStateClass.MEASUREMENT,
@@ -82,6 +91,7 @@ SENSORS: tuple[WaterSteerSensorEntityDescription, ...] = (
     WaterSteerSensorEntityDescription(
         key="time_to_comfort",
         translation_key="time_to_comfort",
+        entity_registry_enabled_default=False,
         device_class=SensorDeviceClass.DURATION,
         native_unit_of_measurement=UnitOfTime.MINUTES,
         state_class=SensorStateClass.MEASUREMENT,
@@ -91,6 +101,7 @@ SENSORS: tuple[WaterSteerSensorEntityDescription, ...] = (
     WaterSteerSensorEntityDescription(
         key="learning_confidence",
         translation_key="learning_confidence",
+        entity_registry_enabled_default=False,
         native_unit_of_measurement=PERCENTAGE,
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda data: data["learning_confidence"],
@@ -98,6 +109,7 @@ SENSORS: tuple[WaterSteerSensorEntityDescription, ...] = (
     WaterSteerSensorEntityDescription(
         key="passive_autonomy",
         translation_key="passive_autonomy",
+        entity_registry_enabled_default=False,
         device_class=SensorDeviceClass.DURATION,
         native_unit_of_measurement=UnitOfTime.MINUTES,
         state_class=SensorStateClass.MEASUREMENT,
@@ -107,6 +119,7 @@ SENSORS: tuple[WaterSteerSensorEntityDescription, ...] = (
     WaterSteerSensorEntityDescription(
         key="predicted_autonomy",
         translation_key="predicted_autonomy",
+        entity_registry_enabled_default=False,
         device_class=SensorDeviceClass.DURATION,
         native_unit_of_measurement=UnitOfTime.MINUTES,
         state_class=SensorStateClass.MEASUREMENT,
@@ -116,6 +129,7 @@ SENSORS: tuple[WaterSteerSensorEntityDescription, ...] = (
     WaterSteerSensorEntityDescription(
         key="predicted_temperature_6h",
         translation_key="predicted_temperature_6h",
+        entity_registry_enabled_default=False,
         device_class=SensorDeviceClass.TEMPERATURE,
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         state_class=SensorStateClass.MEASUREMENT,
@@ -125,6 +139,7 @@ SENSORS: tuple[WaterSteerSensorEntityDescription, ...] = (
     WaterSteerSensorEntityDescription(
         key="autonomy_confidence",
         translation_key="autonomy_confidence",
+        entity_registry_enabled_default=False,
         native_unit_of_measurement=PERCENTAGE,
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda data: data["autonomy_confidence"],
@@ -141,6 +156,7 @@ SENSORS: tuple[WaterSteerSensorEntityDescription, ...] = (
     WaterSteerSensorEntityDescription(
         key="safe_margin_confidence",
         translation_key="safe_margin_confidence",
+        entity_registry_enabled_default=False,
         native_unit_of_measurement=PERCENTAGE,
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda data: data["safe_margin_confidence"],
@@ -159,6 +175,7 @@ SENSORS: tuple[WaterSteerSensorEntityDescription, ...] = (
     WaterSteerSensorEntityDescription(
         key="expected_charge_duration",
         translation_key="expected_charge_duration",
+        entity_registry_enabled_default=False,
         device_class=SensorDeviceClass.DURATION,
         native_unit_of_measurement=UnitOfTime.MINUTES,
         state_class=SensorStateClass.MEASUREMENT,
@@ -168,6 +185,7 @@ SENSORS: tuple[WaterSteerSensorEntityDescription, ...] = (
     WaterSteerSensorEntityDescription(
         key="planned_target",
         translation_key="planned_target",
+        entity_registry_enabled_default=False,
         device_class=SensorDeviceClass.TEMPERATURE,
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         state_class=SensorStateClass.MEASUREMENT,
@@ -177,6 +195,7 @@ SENSORS: tuple[WaterSteerSensorEntityDescription, ...] = (
     WaterSteerSensorEntityDescription(
         key="selected_price",
         translation_key="selected_price",
+        entity_registry_enabled_default=False,
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=3,
         value_fn=lambda data: data["price_plan_selected_price"],
@@ -184,6 +203,7 @@ SENSORS: tuple[WaterSteerSensorEntityDescription, ...] = (
     WaterSteerSensorEntityDescription(
         key="usage_probability_next_6h",
         translation_key="usage_probability_next_6h",
+        entity_registry_enabled_default=False,
         native_unit_of_measurement=PERCENTAGE,
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=0,
@@ -192,6 +212,7 @@ SENSORS: tuple[WaterSteerSensorEntityDescription, ...] = (
     WaterSteerSensorEntityDescription(
         key="expected_usage_drop_next_6h",
         translation_key="expected_usage_drop_next_6h",
+        entity_registry_enabled_default=False,
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=1,
@@ -200,17 +221,20 @@ SENSORS: tuple[WaterSteerSensorEntityDescription, ...] = (
     WaterSteerSensorEntityDescription(
         key="demand_level",
         translation_key="demand_level",
+        entity_registry_enabled_default=False,
         value_fn=lambda data: data["demand_level"],
     ),
     WaterSteerSensorEntityDescription(
         key="next_expected_usage",
         translation_key="next_expected_usage",
+        entity_registry_enabled_default=False,
         device_class=SensorDeviceClass.TIMESTAMP,
         value_fn=lambda data: data["next_expected_usage"],
     ),
     WaterSteerSensorEntityDescription(
         key="typical_usage_drop",
         translation_key="typical_usage_drop",
+        entity_registry_enabled_default=False,
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=1,
@@ -219,6 +243,7 @@ SENSORS: tuple[WaterSteerSensorEntityDescription, ...] = (
     WaterSteerSensorEntityDescription(
         key="usage_learning_confidence",
         translation_key="usage_learning_confidence",
+        entity_registry_enabled_default=False,
         native_unit_of_measurement=PERCENTAGE,
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda data: data["usage_learning_confidence"],
