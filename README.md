@@ -82,8 +82,9 @@ It detects likely hot-water draws using a hybrid approach:
 
 - direct detection from rapid unexplained temperature drops
 - recovery-based detection when a DHW heating cycle starts significantly earlier than learned standby loss can explain
+- inferred DHW-heating detection from a clear temperature rise when no explicit DHW-active signal is available
 
-Recovery-based events are only created when the recharge is materially earlier than the passive thermal model predicts, and recent direct draw events suppress duplicate recovery events.
+Recovery-based events are only created when the recharge is materially earlier than the passive thermal model predicts, and recent direct draw events suppress duplicate recovery events. WaterSteer does not require an explicit DHW-active entity for this path; a sufficiently clear temperature rise can be used as a fallback heating signal.
 
 The model then builds separate time-of-day profiles for:
 
