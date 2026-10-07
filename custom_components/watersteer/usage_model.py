@@ -137,10 +137,7 @@ class DhwUsageModel:
         )
 
         if previous is not None:
-            if (
-                resolved_heating_active is True
-                and previous.heating_active is not True
-            ):
+            if resolved_heating_active is True and previous.heating_active is not True:
                 self._detect_recovery_event(
                     current=sample,
                     standby_loss_c_per_hour=standby_loss_c_per_hour,
