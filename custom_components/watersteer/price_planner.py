@@ -102,7 +102,7 @@ def plan_price_window(
         return PricePlan(
             status="comfort_recovery",
             reason="comfort_minimum_reached",
-            next_charge=now,
+            next_charge=None,
             charge_end=None,
             expected_charge_minutes=None,
             planned_target=normal_target,
@@ -110,7 +110,7 @@ def plan_price_window(
             current_price=current_price,
             savings_vs_current=0.0,
             price_slot_count=len(price_slots),
-            planning_deadline=now,
+            planning_deadline=None,
             confidence=autonomy_confidence,
             window_active_now=True,
         )
