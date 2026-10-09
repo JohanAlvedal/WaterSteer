@@ -51,6 +51,8 @@ from .controller import (
     apply_thermal_confidence_guard,
     classify_dhw_temperature,
 )
+from .demand_predictor import DhwDemandPredictor
+from .horizon_optimizer import optimize_horizon
 from .price_planner import extract_price_slots, plan_price_window
 from .thermal_model import DhwThermalModel
 from .usage_model import DhwUsageModel
@@ -131,6 +133,7 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.entry = entry
         self.thermal_model = DhwThermalModel()
         self.usage_model = DhwUsageModel()
+        self.demand_predictor = DhwDemandPredictor()
         self._thermal_store: Store[dict[str, Any]] = Store(
             hass,
             _STORAGE_VERSION,
@@ -247,9 +250,17 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 standby_loss_c_per_hour=thermal.standby_loss_c_per_hour,
             )
 
+        occupancy = _occupancy_hint(occupancy_state)
         usage = self.usage_model.estimate(
             now_local=now_local,
-            occupancy=_occupancy_hint(occupancy_state),
+            occupancy=occupancy,
+        )
+        demand_forecast = self.demand_predictor.predict(
+            usage_model=self.usage_model,
+            now_local=now_local,
+            occupancy=occupancy,
+            statistical_confidence=usage.confidence,
+            hours=24,
         )
         autonomy = estimate_autonomy(
             current_temperature=dhw_temperature,
@@ -292,22 +303,23 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             minimum_confidence=minimum_thermal_confidence,
         )
 
-        if decision.force_request:
-            control_request = "force_heat"
-        elif price_plan.status == "peak_precharge":
-            control_request = "precharge"
-        elif decision.request or price_plan.status in {
-            "comfort_recovery",
-            "price_charge_window",
-        }:
-            control_request = "heat"
-        elif not decision.allowed or price_plan.status in {
-            "price_hold",
-            "temperature_hold",
-        }:
-            control_request = "hold"
-        else:
-            control_request = "normal"
+        horizon_decision = optimize_horizon(
+            now=now_local,
+            current_temperature=dhw_temperature,
+            comfort_minimum=thresholds.comfort_minimum,
+            normal_target=thresholds.normal_target,
+            precharge_target=thresholds.precharge_target,
+            safe_margin_minutes=safe_margin.minutes,
+            safe_margin_confidence=safe_margin.confidence,
+            demand=demand_forecast,
+            occupancy=occupancy,
+            price_plan=price_plan,
+            price_input_valid=electricity_price is not None,
+            safety_allowed=decision.allowed,
+            safety_request=decision.request,
+            safety_force_request=decision.force_request,
+        )
+        control_request = horizon_decision.intent
 
         if (thermal_observation_added or usage_observation_added) and (
             self._last_store_save is None
@@ -328,6 +340,31 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "decision": decision.classification,
             "decision_reason": decision.reason,
             "control_request": control_request,
+            "control_request_reason": horizon_decision.reason,
+            "control_request_confidence": horizon_decision.confidence,
+            "control_request_demand_risk": horizon_decision.demand_risk * 100,
+            "control_request_expected_demand_drop": (
+                horizon_decision.demand_expected_drop_c
+            ),
+            "control_request_normal_precharge_margin": (
+                horizon_decision.normal_precharge_margin_minutes
+            ),
+            "control_request_boost_recommended": horizon_decision.boost_recommended,
+            "demand_prediction_backend": demand_forecast.backend,
+            "demand_prediction_confidence": demand_forecast.confidence,
+            "demand_prediction_peak_probability": (
+                demand_forecast.peak_probability * 100
+            ),
+            "demand_prediction_expected_drop_24h": demand_forecast.expected_drop_c,
+            "demand_prediction_high_demand_hours": demand_forecast.high_demand_hours,
+            "demand_prediction_forecast": [
+                {
+                    "start": bucket.start.isoformat(),
+                    "probability": round(bucket.probability * 100, 1),
+                    "expected_drop_c": round(bucket.expected_drop_c, 2),
+                }
+                for bucket in demand_forecast.buckets
+            ],
             "raw_temperature_decision": raw_decision.classification,
             "dhw_allowed": decision.allowed,
             "dhw_request": decision.request,
