@@ -291,4 +291,7 @@ def test_peak_precharge_is_not_created_above_precharge_target() -> None:
     )
 
     assert result.status != "peak_precharge"
-    assert result.planned_target != pytest.approx(55.0) or result.window_active_now is False
+    assert (
+        result.planned_target != pytest.approx(55.0)
+        or result.window_active_now is False
+    )
