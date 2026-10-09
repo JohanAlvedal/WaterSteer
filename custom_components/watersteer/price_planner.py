@@ -1,4 +1,4 @@
-"""Explainable shadow price planning for WaterSteer."""
+"""Explainable advisory price planning for WaterSteer."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ class PriceSlot:
 
 @dataclass(frozen=True, slots=True)
 class PricePlan:
-    """One explainable shadow DHW price plan."""
+    """One explainable advisory DHW price plan."""
 
     status: str
     reason: str
@@ -96,7 +96,7 @@ def plan_price_window(
     price_slots: tuple[PriceSlot, ...],
     minimum_confidence: int = MIN_PLANNING_CONFIDENCE,
 ) -> PricePlan:
-    """Build a conservative shadow plan without issuing control commands."""
+    """Build a conservative advisory plan without issuing control commands."""
     if current_temperature is None:
         return _empty_plan(
             "unavailable",
@@ -191,12 +191,10 @@ def plan_price_window(
         and peak_end is not None
         and peak_start > now
         and deadline < peak_end
+        and current_temperature < precharge_target
     ):
-        precharge_deficit = max(0.0, precharge_target - current_temperature)
-        precharge_minutes = max(
-            60 / heating_rate_c_per_hour,
-            precharge_deficit / heating_rate_c_per_hour * 60,
-        )
+        precharge_deficit = precharge_target - current_temperature
+        precharge_minutes = precharge_deficit / heating_rate_c_per_hour * 60
         pre_peak_slots = tuple(slot for slot in price_slots if slot.end <= peak_start)
         precharge_window = _cheapest_contiguous_window(
             slots=pre_peak_slots,
