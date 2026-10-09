@@ -200,8 +200,7 @@ def _boost_needed(
 
     risk, expected_drop = _demand_before(demand, peak_end)
     high_demand = (
-        risk >= BOOST_MIN_PROBABILITY
-        or expected_drop >= BOOST_MIN_EXPECTED_DROP_C
+        risk >= BOOST_MIN_PROBABILITY or expected_drop >= BOOST_MIN_EXPECTED_DROP_C
     )
     if not high_demand:
         return False, None, risk, expected_drop
