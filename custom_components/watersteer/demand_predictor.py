@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from importlib import import_module
 from typing import Any
 
@@ -163,7 +163,7 @@ class DhwDemandPredictor:
         occupancy_factor = AWAY_PROBABILITY_FACTOR if occupancy is False else 1.0
 
         for offset in range(max(1, hours)):
-            target = now_local + __import__("datetime").timedelta(hours=offset)
+            target = now_local + timedelta(hours=offset)
             weekday = target.weekday()
             features = [[
                 float(target.hour),
