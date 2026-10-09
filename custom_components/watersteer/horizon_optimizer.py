@@ -40,6 +40,7 @@ def optimize_horizon(
     demand: DemandForecast,
     occupancy: bool | None,
     price_plan: PricePlan,
+    price_input_valid: bool,
     safety_allowed: bool,
     safety_request: bool,
     safety_force_request: bool,
@@ -49,6 +50,14 @@ def optimize_horizon(
         return _decision(
             "normal",
             "fail_open_missing_temperature",
+            safe_margin_confidence,
+            demand,
+        )
+
+    if not price_input_valid:
+        return _decision(
+            "normal",
+            "fail_open_missing_price_input",
             safe_margin_confidence,
             demand,
         )
