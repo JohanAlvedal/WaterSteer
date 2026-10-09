@@ -263,3 +263,32 @@ def test_peak_slots_are_avoided_when_margin_can_bridge_peak() -> None:
         now + timedelta(hours=2) <= result.next_charge < now + timedelta(hours=4)
     )
     assert result.peak_avoidance_active is True
+
+
+def test_peak_precharge_is_not_created_above_precharge_target() -> None:
+    """A full tank must not be boosted merely because a price peak is coming."""
+    now = datetime(2026, 10, 2, 15, tzinfo=UTC)
+    slots = (
+        _slot(now, 0.6),
+        _slot(now + timedelta(hours=1), 0.7),
+        _slot(now + timedelta(hours=2), 2.5),
+        _slot(now + timedelta(hours=3), 2.7),
+        _slot(now + timedelta(hours=4), 0.8),
+    )
+
+    result = plan_price_window(
+        now=now,
+        current_temperature=55.5,
+        comfort_minimum=45.0,
+        normal_target=50.0,
+        precharge_target=55.0,
+        predicted_autonomy_minutes=120.0,
+        autonomy_confidence=90,
+        heating_rate_c_per_hour=12.0,
+        current_price=0.6,
+        price_slots=slots,
+        minimum_confidence=50,
+    )
+
+    assert result.status != "peak_precharge"
+    assert result.planned_target != pytest.approx(55.0) or result.window_active_now is False
