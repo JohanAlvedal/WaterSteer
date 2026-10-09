@@ -148,7 +148,7 @@ This rule is designed to prevent WaterSteer from withholding normal DHW producti
 
 If required sensor data is invalid, WaterSteer fails safe and allows normal DHW operation.
 
-## Current shadow decisions
+## Current advisory decisions
 
 With the default thresholds:
 
@@ -168,7 +168,7 @@ the raw temperature classifier behaves as follows:
 | 45–50 °C | `normal_operation` | OFF | OFF |
 | >= 50 °C | `temperature_hold` | OFF | OFF |
 
-A `temperature_hold` only becomes an actual WaterSteer `DHW allowed = OFF` shadow decision after the thermal-confidence gate has been satisfied.
+A `temperature_hold` only becomes an actual WaterSteer `DHW allowed = OFF` advisory decision after the thermal-confidence gate has been satisfied.
 
 ## Home Assistant entities
 
@@ -197,7 +197,17 @@ normal
 heat
 force_heat
 precharge
+boost
 ```
+
+The intents deliberately distinguish normal DHW production from extraordinary boost:
+
+- `hold` blocks or postpones normal DHW production while the margin is safe.
+- `normal` leaves the heat pump or heater in normal operation.
+- `heat` requests normal DHW production in a selected charge window.
+- `force_heat` bypasses price optimization because comfort requires normal DHW heating now.
+- `precharge` advances normal DHW production before an expensive price block.
+- `boost` is a last-resort extraordinary request for installations where a boost means substantially hotter water. It is not used merely because electricity is cheap or a peak exists.
 
 Advanced learning, usage, autonomy, planner-detail and diagnostic entities are still available but are disabled by default in the Home Assistant entity registry. They can be enabled individually when troubleshooting or developing WaterSteer.
 
@@ -235,8 +245,14 @@ thermal_model.py
 usage_model.py
   -> DHW draw detection and weekday/weekend demand learning
 
+demand_predictor.py
+  -> 24-hour statistical demand forecast with optional local Random Forest backend
+
 autonomy_model.py
   -> passive and demand-adjusted time-to-comfort prediction
+
+horizon_optimizer.py
+  -> demand-aware current intent across the rolling price horizon
 
 controller.py
   -> deterministic temperature decisions and safety guards
@@ -302,6 +318,25 @@ Planning deadline: 16:35
 ```
 
 The same temperature on a weekend with high learned usage probability may result in normal operation instead.
+
+## Demand prediction and horizon optimization
+
+WaterSteer now separates demand prediction from control.
+
+The default predictor extends the learned weekday/weekend profile to a 24-hour hourly forecast. If scikit-learn is available locally and enough historical exposure and usage events exist, the predictor can automatically use a local Random Forest backend. If ML is unavailable or immature, WaterSteer falls back to the deterministic statistical predictor.
+
+The rolling horizon optimizer combines:
+
+- safe DHW margin and its confidence
+- current DHW temperature
+- the 24-hour demand forecast
+- explicit home/away state when available
+- future electricity prices and detected price peaks
+- the selected precharge window
+
+The optimizer never allows ML to bypass the safety controller. Missing temperature or current price input fails open to `normal`.
+
+Extra-hot-water `boost` is deliberately restrictive. It is only considered during an active peak-precharge window when the home is explicitly occupied, demand confidence is sufficient, current temperature is in the lower range, and normal precharge is estimated to be insufficient to bridge the expensive period with reserve.
 
 ## Active control
 
