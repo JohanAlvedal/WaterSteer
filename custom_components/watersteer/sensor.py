@@ -302,24 +302,14 @@ class WaterSteerSensor(
                 "reason": data["control_request_reason"],
                 "confidence": data["control_request_confidence"],
                 "demand_prediction_backend": data["demand_prediction_backend"],
-                "demand_prediction_confidence": data[
-                    "demand_prediction_confidence"
-                ],
-                "demand_peak_probability": data[
-                    "demand_prediction_peak_probability"
-                ],
-                "expected_demand_drop_24h": data[
-                    "demand_prediction_expected_drop_24h"
-                ],
-                "high_demand_hours_24h": data[
-                    "demand_prediction_high_demand_hours"
-                ],
+                "demand_prediction_confidence": data["demand_prediction_confidence"],
+                "demand_peak_probability": data["demand_prediction_peak_probability"],
+                "expected_demand_drop_24h": data["demand_prediction_expected_drop_24h"],
+                "high_demand_hours_24h": data["demand_prediction_high_demand_hours"],
                 "normal_precharge_margin_minutes": data[
                     "control_request_normal_precharge_margin"
                 ],
-                "boost_recommended": data[
-                    "control_request_boost_recommended"
-                ],
+                "boost_recommended": data["control_request_boost_recommended"],
                 "occupancy_state": data["occupancy_state"],
                 "price_plan_status": data["price_plan_status"],
                 "next_peak_start": data["price_plan_next_peak_start"],
