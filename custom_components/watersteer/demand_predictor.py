@@ -10,7 +10,7 @@ from typing import Any
 from .usage_model import AWAY_PROBABILITY_FACTOR, DhwUsageModel
 
 DEFAULT_FORECAST_HOURS = 24
-MIN_ML_TRAINING_ROWS = 14 * 12
+MIN_ML_TRAINING_ROWS = 14 * 24
 MIN_ML_POSITIVE_ROWS = 8
 
 
