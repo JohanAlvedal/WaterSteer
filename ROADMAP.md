@@ -2,7 +2,7 @@
 
 This roadmap describes both implemented functionality and planned development.
 
-## 0.1 — Foundation and safe shadow control
+## 0.1 — Foundation and safe advisory control
 
 Status: **implemented / being validated**
 
@@ -112,12 +112,12 @@ Status: **foundation implemented / cycle and simple estimators next**
 - advisory operation is the default when no active control is selected
 - simplified default Home Assistant entity surface
 - advanced learning and diagnostic entities disabled by default
-- unified `control_request`: `hold`, `normal`, `heat`, `force_heat`, or `precharge`
+- unified `control_request`: `hold`, `normal`, `heat`, `force_heat`, `precharge`, or `boost`
 
 ### Thermal autonomy
 
 
-Status: **implemented in shadow mode / validation next**
+Status: **implemented in advisory mode / validation next**
 
 - passive autonomy from current DHW temperature and learned standby loss
 - demand-adjusted autonomy from the six-hour learned usage forecast
@@ -196,6 +196,33 @@ Field-validation focus before active control:
 - compare planning deadline with observed comfort-floor crossings
 - watch for false `price_hold` decisions around real morning/evening draws
 - verify behavior when tomorrow's prices are not published yet
+
+## 0.5.1 — Demand predictor and rolling horizon optimizer
+
+Status: **implemented in advisory form / validation next**
+
+- 24-hour statistical DHW demand forecast
+- weekday/weekend profile remains the deterministic fallback
+- explicit occupancy modifier
+- optional local Random Forest backend when scikit-learn is available and training history is sufficient
+- automatic statistical fallback when ML is unavailable or immature
+- rolling horizon policy combines safe margin, demand, occupancy, price plan and peak timing
+- missing DHW temperature fails open to `normal`
+- missing current price input fails open to `normal`
+- future `peak_precharge` windows do not trigger early
+- precharge is suppressed at or above the precharge target
+- `precharge` means normal DHW production moved earlier in time
+- `force_heat` means normal DHW heating now regardless of price
+- extraordinary `boost` is a separate last-resort intent
+- boost requires explicit occupancy, trusted demand forecast and evidence that normal precharge cannot bridge the expensive block
+
+Validation focus:
+
+- compare 24-hour predicted demand with actual DHW use
+- validate occupancy suppression during workday-away periods
+- validate that precharge starts only inside the selected window
+- validate boost remains rare and only appears in genuine high-risk peak scenarios
+- compare statistical and ML backends once sufficient history is available
 
 ## 0.6 — Active control
 
