@@ -99,10 +99,7 @@ class DhwDemandPredictor:
     def _prepare_ml(self, rows: tuple[tuple[float, ...], ...]) -> bool:
         """Train or reuse optional Random Forest models when enough data exists."""
         positive_rows = sum(row[3] > 0 for row in rows)
-        if (
-            len(rows) < MIN_ML_TRAINING_ROWS
-            or positive_rows < MIN_ML_POSITIVE_ROWS
-        ):
+        if len(rows) < MIN_ML_TRAINING_ROWS or positive_rows < MIN_ML_POSITIVE_ROWS:
             return False
 
         signature = (len(rows), positive_rows)
@@ -165,11 +162,13 @@ class DhwDemandPredictor:
         for offset in range(max(1, hours)):
             target = now_local + timedelta(hours=offset)
             weekday = target.weekday()
-            features = [[
-                float(target.hour),
-                float(weekday),
-                1.0 if weekday >= 5 else 0.0,
-            ]]
+            features = [
+                [
+                    float(target.hour),
+                    float(weekday),
+                    1.0 if weekday >= 5 else 0.0,
+                ]
+            ]
             probability = float(self._probability_model.predict(features)[0])
             expected_drop = float(self._drop_model.predict(features)[0])
             probability = max(0.0, min(1.0, probability)) * occupancy_factor
