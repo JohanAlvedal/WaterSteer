@@ -203,3 +203,27 @@ def test_force_heat_remains_normal_heat_not_extra_boost() -> None:
 
     assert result.intent == "force_heat"
     assert result.boost_recommended is False
+
+
+def test_force_heat_overrides_missing_price_input() -> None:
+    """Critical DHW temperature must override missing price data."""
+    now = datetime(2026, 10, 9, 12, tzinfo=UTC)
+    result = optimize_horizon(
+        now=now,
+        current_temperature=39.0,
+        comfort_minimum=45.0,
+        normal_target=50.0,
+        precharge_target=55.0,
+        safe_margin_minutes=0.0,
+        safe_margin_confidence=90,
+        demand=_demand(now, probability=0.1, drop=0.1),
+        occupancy=True,
+        price_plan=_plan(now, status="unavailable", active=False),
+        price_input_valid=False,
+        safety_allowed=True,
+        safety_request=True,
+        safety_force_request=True,
+    )
+
+    assert result.intent == "force_heat"
+    assert result.reason == "absolute_minimum_requires_immediate_heat"
