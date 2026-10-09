@@ -54,14 +54,6 @@ def optimize_horizon(
             demand,
         )
 
-    if not price_input_valid:
-        return _decision(
-            "normal",
-            "fail_open_missing_price_input",
-            safe_margin_confidence,
-            demand,
-        )
-
     if safety_force_request:
         return _decision(
             "force_heat",
@@ -74,6 +66,14 @@ def optimize_horizon(
         return _decision(
             "heat",
             "comfort_recovery_requires_heat",
+            safe_margin_confidence,
+            demand,
+        )
+
+    if not price_input_valid:
+        return _decision(
+            "normal",
+            "fail_open_missing_price_input",
             safe_margin_confidence,
             demand,
         )
