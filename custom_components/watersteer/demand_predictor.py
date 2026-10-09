@@ -116,7 +116,7 @@ class DhwDemandPredictor:
         try:
             ensemble = import_module("sklearn.ensemble")
             model_class = ensemble.RandomForestRegressor
-        except (ImportError, AttributeError):
+        except ImportError, AttributeError:
             self._probability_model = None
             self._drop_model = None
             self._ml_signature = None
