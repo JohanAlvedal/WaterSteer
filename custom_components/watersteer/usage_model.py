@@ -396,6 +396,62 @@ class DhwUsageModel:
             forecast=tuple(forecast),
         )
 
+    def forecast_horizon(
+        self,
+        *,
+        now_local: datetime,
+        occupancy: bool | None,
+        hours: int = 24,
+    ) -> tuple[UsageForecastBucket, ...]:
+        """Return an explainable demand forecast for an arbitrary horizon."""
+        forecast: list[UsageForecastBucket] = []
+        for offset in range(max(1, hours)):
+            target = now_local + timedelta(hours=offset)
+            day_type = self._day_type(target)
+            probability = self._apply_occupancy(
+                self._bucket_probability(day_type, target.hour),
+                occupancy,
+            )
+            typical_drop = self._bucket_typical_drop(day_type, target.hour)
+            forecast.append(
+                UsageForecastBucket(
+                    start=target.replace(minute=0, second=0, microsecond=0),
+                    probability=probability,
+                    typical_drop_c=typical_drop,
+                    expected_drop_c=probability * (typical_drop or 0.0),
+                )
+            )
+        return tuple(forecast)
+
+    def ml_training_rows(self) -> tuple[tuple[float, ...], ...]:
+        """Return hourly exposure rows for an optional local ML predictor."""
+        exposures: dict[tuple[str, int], UsageSample] = {}
+        for sample in self._samples:
+            exposures.setdefault((sample.date_key, sample.hour), sample)
+
+        event_drops: dict[tuple[str, int], float] = {}
+        for event in self._events:
+            key = (event.date_key, event.hour)
+            event_drops[key] = event_drops.get(key, 0.0) + event.drop_c
+
+        rows: list[tuple[float, ...]] = []
+        for (date_key, hour), sample in sorted(exposures.items()):
+            try:
+                weekday = datetime.fromisoformat(date_key).weekday()
+            except ValueError:
+                continue
+            drop = event_drops.get((date_key, hour), 0.0)
+            rows.append(
+                (
+                    float(hour),
+                    float(weekday),
+                    1.0 if sample.day_type == "weekend" else 0.0,
+                    1.0 if drop > 0 else 0.0,
+                    float(drop),
+                )
+            )
+        return tuple(rows)
+
     def _bucket_probability(self, day_type: str, hour: int) -> float:
         """Return historical event probability for a day-type/hour bucket."""
         exposure_days = {
