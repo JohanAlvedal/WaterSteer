@@ -145,6 +145,7 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             f"{DOMAIN}.{entry.entry_id}.usage_model",
         )
         self._last_store_save = None
+        self._force_recovery_active = False
 
     async def async_initialize(self) -> None:
         """Restore persisted learning history."""
@@ -303,6 +304,12 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             minimum_confidence=minimum_thermal_confidence,
         )
 
+        if dhw_temperature is not None:
+            if decision.force_request:
+                self._force_recovery_active = True
+            elif dhw_temperature >= thresholds.comfort_minimum:
+                self._force_recovery_active = False
+
         horizon_decision = optimize_horizon(
             now=now_local,
             current_temperature=dhw_temperature,
@@ -317,7 +324,9 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             price_input_valid=electricity_price is not None,
             safety_allowed=decision.allowed,
             safety_request=decision.request,
-            safety_force_request=decision.force_request,
+            safety_force_request=(
+                decision.force_request or self._force_recovery_active
+            ),
         )
         control_request = horizon_decision.intent
 
@@ -368,7 +377,8 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "raw_temperature_decision": raw_decision.classification,
             "dhw_allowed": decision.allowed,
             "dhw_request": decision.request,
-            "force_request": decision.force_request,
+            "force_request": decision.force_request or self._force_recovery_active,
+            "force_recovery_active": self._force_recovery_active,
             "absolute_minimum": thresholds.absolute_minimum,
             "comfort_minimum": thresholds.comfort_minimum,
             "normal_target": thresholds.normal_target,
