@@ -227,3 +227,51 @@ def test_force_heat_overrides_missing_price_input() -> None:
 
     assert result.intent == "force_heat"
     assert result.reason == "absolute_minimum_requires_immediate_heat"
+
+
+def test_price_hold_below_normal_target_fails_open_to_normal() -> None:
+    """Physical blocking is not allowed below the configured normal target."""
+    now = datetime(2026, 10, 11, 12, tzinfo=UTC)
+    result = optimize_horizon(
+        now=now,
+        current_temperature=48.0,
+        comfort_minimum=45.0,
+        normal_target=50.0,
+        precharge_target=55.0,
+        safe_margin_minutes=240.0,
+        safe_margin_confidence=90,
+        demand=_demand(now, probability=0.1, drop=0.1),
+        occupancy=True,
+        price_plan=_plan(now, status="price_hold", active=False),
+        price_input_valid=True,
+        safety_allowed=True,
+        safety_request=False,
+        safety_force_request=False,
+    )
+
+    assert result.intent == "normal"
+    assert result.reason == "hold_guard_below_normal_target"
+
+
+def test_waiting_precharge_below_normal_target_does_not_block() -> None:
+    """Waiting for a future precharge window must not block a cooling tank."""
+    now = datetime(2026, 10, 11, 12, tzinfo=UTC)
+    result = optimize_horizon(
+        now=now,
+        current_temperature=48.0,
+        comfort_minimum=45.0,
+        normal_target=50.0,
+        precharge_target=55.0,
+        safe_margin_minutes=240.0,
+        safe_margin_confidence=90,
+        demand=_demand(now, probability=0.2, drop=0.1),
+        occupancy=True,
+        price_plan=_plan(now, status="peak_precharge", active=False),
+        price_input_valid=True,
+        safety_allowed=True,
+        safety_request=False,
+        safety_force_request=False,
+    )
+
+    assert result.intent == "normal"
+    assert result.reason == "precharge_wait_below_normal_target"
