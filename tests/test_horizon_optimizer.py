@@ -110,7 +110,7 @@ def test_missing_price_fails_open() -> None:
 
 
 def test_future_precharge_window_does_not_precharge_early() -> None:
-    """A planned future precharge remains a hold until its window starts."""
+    """A future precharge stays normal below target until its window starts."""
     now = datetime(2026, 10, 9, 12, tzinfo=UTC)
     result = optimize_horizon(
         now=now,
@@ -129,8 +129,8 @@ def test_future_precharge_window_does_not_precharge_early() -> None:
         safety_force_request=False,
     )
 
-    assert result.intent == "hold"
-    assert result.reason == "waiting_for_planned_precharge_window"
+    assert result.intent == "normal"
+    assert result.reason == "precharge_wait_below_normal_target"
 
 
 def test_away_home_never_uses_extra_boost() -> None:
