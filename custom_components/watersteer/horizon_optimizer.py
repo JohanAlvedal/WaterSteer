@@ -104,6 +104,13 @@ def optimize_horizon(
             )
 
         if not price_plan.window_active_now:
+            if current_temperature < normal_target:
+                return _decision(
+                    "normal",
+                    "precharge_wait_below_normal_target",
+                    safe_margin_confidence,
+                    demand,
+                )
             return _decision(
                 "hold",
                 "waiting_for_planned_precharge_window",
@@ -152,6 +159,13 @@ def optimize_horizon(
         )
 
     if price_plan.status in {"price_hold", "temperature_hold"}:
+        if current_temperature < normal_target:
+            return _decision(
+                "normal",
+                "hold_guard_below_normal_target",
+                safe_margin_confidence,
+                demand,
+            )
         return _decision(
             "hold",
             "safe_to_hold_for_price_plan",
