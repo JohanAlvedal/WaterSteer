@@ -213,7 +213,9 @@ Status: **implemented in advisory form / validation next**
 - precharge is suppressed at or above the precharge target
 - `precharge` means normal DHW production moved earlier in time
 - `force_heat` means normal DHW heating now regardless of price
-- extraordinary `boost` is a separate last-resort intent
+- `force_heat` latches critical recovery after the absolute minimum is reached and remains active until the comfort minimum recovers
+- heat-pump integrations may map `force_heat` to their emergency/Extra Hot Water action
+- extraordinary `boost` is a separate last-resort pre-peak intent
 - boost requires explicit occupancy, trusted demand forecast and evidence that normal precharge cannot bridge the expensive block
 
 Validation focus:
