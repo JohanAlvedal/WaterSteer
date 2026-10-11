@@ -205,9 +205,9 @@ The intents deliberately distinguish normal DHW production from extraordinary bo
 - `hold` blocks or postpones normal DHW production while the margin is safe.
 - `normal` leaves the heat pump or heater in normal operation.
 - `heat` requests normal DHW production in a selected charge window.
-- `force_heat` bypasses price optimization because comfort requires normal DHW heating now.
+- `force_heat` is a latched critical-recovery request. On heat-pump installations where Extra Hot Water is the available emergency action, it may map to that boost and remains active until the comfort minimum has recovered.
 - `precharge` advances normal DHW production before an expensive price block.
-- `boost` is a last-resort extraordinary request for installations where a boost means substantially hotter water. It is not used merely because electricity is cheap or a peak exists.
+- `boost` is a last-resort extraordinary pre-peak request for installations where a boost means substantially hotter water. It is not used merely because electricity is cheap or a peak exists.
 
 Advanced learning, usage, autonomy, planner-detail and diagnostic entities are still available but are disabled by default in the Home Assistant entity registry. They can be enabled individually when troubleshooting or developing WaterSteer.
 
