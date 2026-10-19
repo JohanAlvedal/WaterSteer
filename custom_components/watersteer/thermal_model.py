@@ -69,6 +69,8 @@ class ThermalEstimate:
     ambient_estimate_c: float | None = None
     loss_model: str = "none"
     validation_error_c: float | None = None
+    loss_coefficient_per_hour: float | None = None
+    passive_loss_c_per_hour: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -275,6 +277,12 @@ class DhwThermalModel:
             ambient_estimate_c=newton[1] if newton is not None else None,
             loss_model=loss_model,
             validation_error_c=validation_error,
+            loss_coefficient_per_hour=newton[0] if newton is not None else None,
+            passive_loss_c_per_hour=(
+                _weighted_median([(run.rate_c_per_hour, run.hours) for run in runs])
+                if runs
+                else None
+            ),
         )
 
     @staticmethod

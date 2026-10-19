@@ -265,6 +265,9 @@
           "learning": "Learning",
           "allowing": "Normal operation"
         }
+      },
+      "optimization": {
+        "name": "Expected saving"
       }
     },
     "binary_sensor": {

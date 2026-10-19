@@ -265,6 +265,9 @@
           "learning": "Lär sig",
           "allowing": "Normal drift"
         }
+      },
+      "optimization": {
+        "name": "Förväntad besparing"
       }
     },
     "binary_sensor": {

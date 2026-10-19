@@ -44,6 +44,17 @@ SENSORS: tuple[WaterSteerSensorEntityDescription, ...] = (
         value_fn=lambda data: data["status"],
     ),
     WaterSteerSensorEntityDescription(
+        key="optimization",
+        translation_key="optimization",
+        native_unit_of_measurement=PERCENTAGE,
+        suggested_display_precision=0,
+        value_fn=lambda data: (
+            round(data["optimization_saving_percent"], 1)
+            if data["optimization_saving_percent"] is not None
+            else None
+        ),
+    ),
+    WaterSteerSensorEntityDescription(
         key="mode",
         translation_key="mode",
         entity_registry_enabled_default=False,
@@ -329,6 +340,21 @@ class WaterSteerSensor(
                 "next_planned_heating": data["price_plan_next_charge"],
             }
 
+        if key == "optimization":
+            return {
+                "horizon_hours": _round(data["shadow_horizon_hours"]),
+                "lowest_temperature_with_plan": _round(
+                    data["shadow_plan_min_temperature"]
+                ),
+                "lowest_temperature_without_plan": _round(
+                    data["shadow_normal_min_temperature"]
+                ),
+                "heating_hours_with_plan": _round(data["shadow_plan_heating_hours"]),
+                "heating_hours_without_plan": _round(
+                    data["shadow_normal_heating_hours"]
+                ),
+            }
+
         if key == "control_request":
             return {
                 "reason": data["control_request_reason"],
@@ -423,3 +449,8 @@ class WaterSteerSensor(
             }
 
         return None
+
+
+def _round(value: float | None) -> float | None:
+    """Round for display, keeping None."""
+    return None if value is None else round(value, 1)

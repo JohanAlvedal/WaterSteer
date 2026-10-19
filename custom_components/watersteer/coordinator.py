@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 from datetime import timedelta
 from typing import Any
 
@@ -72,6 +73,7 @@ from .demand_predictor import DhwDemandPredictor
 from .horizon_optimizer import optimize_horizon
 from .price_planner import extract_price_slots, plan_price_window
 from .safety import DhwSafetySupervisor
+from .shadow_planner import ShadowResult, TankModel, simulate
 from .thermal_model import DhwThermalModel
 from .usage_model import DhwUsageModel
 
@@ -237,6 +239,62 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         await self._thermal_store.async_save(self.thermal_model.as_dict())
         await self._usage_store.async_save(self.usage_model.as_dict())
         await self.async_release()
+
+    def _shadow(
+        self,
+        *,
+        now_local,
+        temperature: float | None,
+        thermal,
+        thresholds: DhwThresholds,
+        price_slots,
+        demand,
+        intent: str,
+        price_plan,
+    ) -> ShadowResult | None:
+        """Simulate normal operation against the current plan."""
+        if (
+            temperature is None
+            or thermal.heating_rate_c_per_hour is None
+            or thermal.standby_loss_c_per_hour is None
+            or not price_slots
+        ):
+            return None
+        k = thermal.loss_coefficient_per_hour
+        ambient = thermal.ambient_estimate_c
+        constant = thermal.passive_loss_c_per_hour or thermal.standby_loss_c_per_hour
+        if k is not None and ambient is not None:
+
+            def loss(value: float) -> float:
+                return max(0.0, k * (value - ambient))
+
+        else:
+
+            def loss(_value: float) -> float:
+                return constant
+
+        hold_until = None
+        if intent == "hold":
+            hold_until = price_plan.next_charge or (
+                now_local + timedelta(hours=self.safety.max_hold_hours)
+            )
+        return simulate(
+            now=now_local,
+            temperature=temperature,
+            tank=TankModel(
+                loss_c_per_hour=loss,
+                heating_rate_c_per_hour=thermal.heating_rate_c_per_hour,
+                comfort_minimum=thresholds.comfort_minimum,
+                start_below=(thresholds.comfort_minimum + thresholds.normal_target) / 2,
+                stop_at=thresholds.normal_target,
+            ),
+            price_slots=price_slots,
+            demand=demand,
+            hold_until=hold_until,
+            window_start=price_plan.next_charge,
+            window_end=price_plan.charge_end,
+            window_target=price_plan.planned_target,
+        )
 
     def _config(self) -> dict[str, Any]:
         """Return effective configuration with options overriding setup data."""
@@ -424,6 +482,26 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             safety_force_request=(decision.force_request or self.safety.force_latched),
             optimization_allowed=thresholds_valid,
         )
+        shadow = self._shadow(
+            now_local=now_local,
+            temperature=dhw_temperature,
+            thermal=thermal,
+            thresholds=thresholds,
+            price_slots=price_slots,
+            demand=demand_forecast.buckets,
+            intent=horizon_decision.intent,
+            price_plan=price_plan,
+        )
+        if (
+            horizon_decision.intent == "hold"
+            and shadow is not None
+            and shadow.optimized.min_temperature < thresholds.comfort_minimum
+        ):
+            horizon_decision = replace(
+                horizon_decision,
+                intent="normal",
+                reason="shadow_simulation_predicts_comfort_breach",
+            )
         safety_before = self.safety.as_dict()
         safety_result = self.safety.evaluate(
             now=now.timestamp(),
@@ -503,6 +581,24 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "actuator_active": actuator_report.active,
             "actuator_commands": list(actuator_report.commands),
             "safety_problem": bool(warnings),
+            "optimization_saving_percent": (
+                shadow.saving_percent
+                if shadow is not None and optimization_ready
+                else None
+            ),
+            "shadow_horizon_hours": shadow.horizon_hours if shadow else None,
+            "shadow_normal_min_temperature": (
+                shadow.normal.min_temperature if shadow else None
+            ),
+            "shadow_plan_min_temperature": (
+                shadow.optimized.min_temperature if shadow else None
+            ),
+            "shadow_normal_heating_hours": (
+                shadow.normal.heating_hours if shadow else None
+            ),
+            "shadow_plan_heating_hours": (
+                shadow.optimized.heating_hours if shadow else None
+            ),
             "system_type": config[CONF_SYSTEM_TYPE],
             "decision": decision.classification,
             "decision_reason": decision.reason,
