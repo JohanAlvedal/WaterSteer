@@ -72,7 +72,7 @@ from .decision import (
 from .demand_predictor import DhwDemandPredictor
 from .horizon_optimizer import optimize_horizon
 from .price_planner import extract_price_slots, plan_price_window
-from .safety import DhwSafetySupervisor
+from .safety import ChargeController, DhwSafetySupervisor
 from .shadow_planner import ShadowResult, TankModel, simulate
 from .thermal_model import DhwThermalModel
 from .usage_model import DhwUsageModel
@@ -159,6 +159,7 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.demand_predictor = DhwDemandPredictor(enable_ml=False)
         self.safety = DhwSafetySupervisor()
         self.actuator = DhwActuator(hass)
+        self.charge = ChargeController()
         self.mode = MODE_ADVISORY
         self._thermal_store: Store[dict[str, Any]] = Store(
             hass,
@@ -177,6 +178,7 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
         self._last_store_save = None
         self._threshold_warning_logged = False
+        self._last_intent: str | None = None
 
     async def async_initialize(self) -> None:
         """Restore persisted learning history."""
@@ -195,6 +197,7 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return
         self.safety.restore(data.get("safety"))
         self.actuator.restore(data.get("actuator"))
+        self.charge.restore(data.get("charge"))
         if data.get("mode") in MODES:
             self.mode = data["mode"]
 
@@ -203,6 +206,7 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return {
             "safety": self.safety.as_dict(),
             "actuator": self.actuator.as_dict(),
+            "charge": self.charge.as_dict(),
             "mode": self.mode,
         }
 
@@ -481,6 +485,7 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             safety_request=decision.request,
             safety_force_request=(decision.force_request or self.safety.force_latched),
             optimization_allowed=thresholds_valid,
+            holding=self._last_intent == "hold",
         )
         shadow = self._shadow(
             now_local=now_local,
@@ -521,10 +526,33 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         optimization_ready = (
             thresholds_valid and thermal.loss_confidence >= minimum_thermal_confidence
         )
+        charge_before = self.charge.as_dict()
+        charge = self.charge.evaluate(
+            now=now.timestamp(),
+            intent=safety_result.intent,
+            reason=safety_result.reason,
+            temperature=dhw_temperature,
+            target_for={
+                # Comfort recovery only needs to get back above comfort; a
+                # planned cheap charge fills the tank well above normal target
+                # so the next charge is not needed again an hour later.
+                "heat": (
+                    thresholds.comfort_minimum + 1.0
+                    if safety_result.reason == "comfort_recovery_requires_heat"
+                    else (thresholds.normal_target + thresholds.precharge_target) / 2
+                ),
+                "precharge": thresholds.precharge_target,
+            },
+        )
+        if charge.intent != safety_result.intent and safety_result.intent == "hold":
+            # A finishing charge is not a hold; do not count it towards the
+            # continuous hold limit.
+            self.safety.hold_since = None
         output: ControlOutput = arbitrate(
+            heating_assist=charge.assist,
             mode=self.mode,
-            safety_intent=safety_result.intent,
-            safety_reason=safety_result.reason,
+            safety_intent=charge.intent,
+            safety_reason=charge.reason,
             warnings=safety_result.warnings,
             external_heating_active=external_heating_active,
             optimization_ready=optimization_ready,
@@ -550,10 +578,12 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             extra_lever=extra_lever,
         )
         control_request = output.intent
+        self._last_intent = output.intent
         warnings = tuple(dict.fromkeys(output.warnings + actuator_report.warnings))
         if (
             self.safety.as_dict() != safety_before
             or self.actuator.as_dict() != actuator_before
+            or self.charge.as_dict() != charge_before
         ):
             await self._safety_store.async_save(self._control_state())
 
@@ -577,6 +607,8 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "block": output.block,
             "extra_hot_water": output.extra_hot_water,
             "external_heating_active": external_heating_active,
+            "heating_assist": charge.assist,
+            "charge_target": charge.target,
             "optimization_ready": optimization_ready,
             "actuator_active": actuator_report.active,
             "actuator_commands": list(actuator_report.commands),

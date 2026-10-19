@@ -300,3 +300,42 @@ def test_waiting_precharge_below_normal_target_does_not_block() -> None:
 
     assert result.intent == "normal"
     assert result.reason == "precharge_wait_below_normal_target"
+
+
+def test_hold_hysteresis_and_minimum_charge() -> None:
+    """A running hold may continue slightly below target; tiny charges wait."""
+    now = datetime(2026, 1, 5, 6, tzinfo=UTC)
+    common = {
+        "now": now,
+        "comfort_minimum": 45.0,
+        "normal_target": 50.0,
+        "precharge_target": 55.0,
+        "safe_margin_minutes": 600.0,
+        "safe_margin_confidence": 90,
+        "demand": _demand(now, probability=0.1, drop=0.1),
+        "occupancy": True,
+        "price_input_valid": True,
+        "safety_allowed": True,
+        "safety_request": False,
+        "safety_force_request": False,
+    }
+    hold_plan = _plan(now, status="price_hold", active=False)
+    window = _plan(now, status="price_charge_window", active=True)
+
+    continuing = optimize_horizon(
+        current_temperature=48.5, price_plan=hold_plan, holding=True, **common
+    )
+    fresh = optimize_horizon(
+        current_temperature=48.5, price_plan=hold_plan, holding=False, **common
+    )
+    tiny = optimize_horizon(
+        current_temperature=49.0, price_plan=window, holding=False, **common
+    )
+    real = optimize_horizon(
+        current_temperature=47.0, price_plan=window, holding=False, **common
+    )
+
+    assert continuing.intent == "hold"
+    assert fresh.intent == "normal"
+    assert tiny.intent == "normal"
+    assert real.intent == "heat"

@@ -1,5 +1,11 @@
 # WaterSteer audit — October 2026
 
+> **Implementation status (branch `feat/simple-control`):** phases 1–5 of the
+> roadmap below are implemented: safety supervisor, single arbitration point
+> with two physical levers, optional Active control, the simplified entity
+> surface (sections 3–4), corrected thermal learning and the shadow price
+> planner. See [ROADMAP.md](../ROADMAP.md) for the current status.
+
 Scope: branch `feat/0.1-foundation` (50 commits ahead of `main`; `main` only
 contains the 0.1 skeleton). Audit performed against commit `dd019af`.
 
@@ -48,10 +54,15 @@ contains the 0.1 skeleton). Audit performed against commit `dd019af`.
 | B5 | High | Config-entry migration v1→v2 disabled `sensor.watersteer_thermal_learning_confidence`, which external automations use, while the README stated existing registry choices are preserved. | Fixed (v3 migration re-enables it only when WaterSteer disabled it) |
 | B6 | High | Random Forest training and the `sklearn` import ran inside `_async_update_data`, i.e. on the event loop. scikit-learn is not in `requirements`, so the path was also effectively untested. | Disabled by default |
 | B7 | Medium | `binary_sensor.watersteer_dhw_allowed` came from the temperature classifier while `control_request` came from the optimizer; they could disagree (e.g. allowed=off while request=normal). | Fixed: `dhw_allowed = control_request != "hold"` |
-| B8 | Medium | Recorder load: `control_request` carries a 24-element forecast list, every binary sensor carries ~22 attributes including the live temperature, so each temperature change writes four large rows. | Forecast lists excluded from recorder; binary sensor attributes still to be trimmed (P1) |
-| B9 | Low | `_find_next_peak` uses `median * 1.5`; with zero/negative prices every slot qualifies or none does. | Open |
-| B10 | Low | Temperature sensors without `unit_of_measurement` are treated as missing → permanent `normal`, silently. | Open: will surface through the Safety entity (P1) |
+| B8 | Medium | Recorder load: `control_request` carries a 24-element forecast list, every binary sensor carries ~22 attributes including the live temperature, so each temperature change writes four large rows. | Fixed: attributes trimmed, forecasts and explanations not recorded |
+| B9 | Low | `_find_next_peak` uses `median * 1.5`; with zero/negative prices every slot qualifies or none does. | Fixed: spread-based threshold |
+| B10 | Low | Temperature sensors without `unit_of_measurement` are treated as missing → permanent `normal`, silently. | Surfaced: Safety entity and Status = Fallback |
 | B11 | Low | Threshold warning would log every 30 s. | Fixed: logged once |
+| B12 | **High** | Standby loss was the median of 5-minute steps. With a 0.1 °C sensor each step is 0 or 1.2 °C/h, so the model always reported 1.2 °C/h at 100 % confidence (true value ~0.3–0.8); with a 0.5 °C sensor it never learned. Autonomy was underestimated by 2–4×. | Fixed: fitted over cooling runs, tested at 0.1 and 0.5 °C resolution |
+| B13 | Medium | A detected draw followed by an early reheat was counted twice (direct + recovery event) when the reheat came more than 60 min later. | Fixed |
+| B14 | Low | Coordinator overrode `async_shutdown` without calling the base class, so refresh timers were not cancelled on unload. | Fixed |
+| B15 | **High** | `heat` and `precharge` only meant *unblock*. On a heat pump that starts hot water far below the plan's target (closed-loop test: 42 °C), planned cheap charges did nothing, and the tank was later recovered by `force_heat` in expensive hours (47 % of heat in peak hours, minimum 38.6 °C). | Fixed: charges finish to target and use extra hot water when the pump does not start; 11 % of heat in peak hours, minimum 44.8 °C |
+| B16 | Medium | No hysteresis around the normal target: hold and 0.5 °C charges alternated every hour (60 block changes in 4 days). | Fixed: hold hysteresis and minimum charge size (13 changes) |
 
 ## 2. The 38.9 °C incident
 

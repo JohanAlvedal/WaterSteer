@@ -244,6 +244,120 @@ class DhwSafetySupervisor:
         self.hold_lockout_until = _optional_float(data.get("hold_lockout_until"))
 
 
+HEATING_ASSIST_MINUTES = 15.0
+MAX_CHARGE_HOURS = 3.0
+CHARGE_INTENTS = frozenset({"heat", "precharge"})
+
+
+@dataclass(frozen=True, slots=True)
+class ChargeResult:
+    """Supervised charging decision."""
+
+    intent: str
+    reason: str
+    assist: bool
+    target: float | None
+
+
+class ChargeController:
+    """Finish planned charges and make sure they really happen.
+
+    * A started ``heat`` / ``precharge`` continues until its target is reached
+      (or ``MAX_CHARGE_HOURS``), even if the plan flips to ``hold`` half-way.
+      Without this the tank dithers around the normal target in tiny cycles.
+    * If the tank has not started warming within ``HEATING_ASSIST_MINUTES``,
+      extra hot water is requested: many heat pumps only start DHW far below
+      the planned target, so unblocking alone does nothing.
+
+    Only ever extends heating, so it is applied after the safety supervisor.
+    """
+
+    def __init__(self) -> None:
+        """Initialize without an active charge."""
+        self.intent: str | None = None
+        self.target: float | None = None
+        self.since: float | None = None
+        self.start_temperature: float | None = None
+        self.assist = False
+
+    def evaluate(
+        self,
+        *,
+        now: float,
+        intent: str,
+        reason: str,
+        temperature: float | None,
+        target_for: dict[str, float],
+    ) -> ChargeResult:
+        """Return the intent after charge latching and assist."""
+        if temperature is None or intent in {"force_heat", "boost"}:
+            self._reset()
+            return ChargeResult(intent, reason, False, None)
+
+        if intent in CHARGE_INTENTS and self.intent is None:
+            self.intent = intent
+            self.target = target_for[intent]
+            self.since = now
+            self.start_temperature = temperature
+        elif intent in CHARGE_INTENTS and intent != self.intent:
+            self.intent = intent
+            self.target = max(self.target or 0.0, target_for[intent])
+
+        if self.intent is None or self.since is None or self.target is None:
+            return ChargeResult(intent, reason, False, None)
+
+        if temperature >= self.target or now - self.since > MAX_CHARGE_HOURS * 3600:
+            self._reset()
+            return ChargeResult(intent, reason, False, None)
+
+        if intent not in CHARGE_INTENTS:
+            if reason.startswith(("max_hold", "hold_lockout", "hold_rejected")) or (
+                intent not in {"hold", "normal"}
+            ):
+                self._reset()
+                return ChargeResult(intent, reason, False, None)
+            intent = self.intent
+            reason = "finishing_planned_charge"
+
+        if (
+            not self.assist
+            and self.start_temperature is not None
+            and now - self.since >= HEATING_ASSIST_MINUTES * 60
+            and temperature < self.start_temperature + RECOVERY_RISE_C
+        ):
+            self.assist = True
+
+        return ChargeResult(intent, reason, self.assist, self.target)
+
+    def _reset(self) -> None:
+        self.intent = None
+        self.target = None
+        self.since = None
+        self.start_temperature = None
+        self.assist = False
+
+    def as_dict(self) -> dict[str, Any]:
+        """Serialize charge state."""
+        return {
+            "intent": self.intent,
+            "target": self.target,
+            "since": self.since,
+            "start_temperature": self.start_temperature,
+            "assist": self.assist,
+        }
+
+    def restore(self, data: dict[str, Any] | None) -> None:
+        """Restore charge state."""
+        if not isinstance(data, dict):
+            return
+        intent = data.get("intent")
+        self.intent = intent if intent in CHARGE_INTENTS else None
+        self.target = _optional_float(data.get("target"))
+        self.since = _optional_float(data.get("since"))
+        self.start_temperature = _optional_float(data.get("start_temperature"))
+        self.assist = data.get("assist") is True
+
+
 def _optional_float(value: Any) -> float | None:
     """Return a float or None."""
     if value is None or isinstance(value, bool):

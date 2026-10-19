@@ -13,6 +13,12 @@ BOOST_MIN_DEMAND_CONFIDENCE = 50
 BOOST_MIN_PROBABILITY = 0.55
 BOOST_MIN_EXPECTED_DROP_C = 2.5
 BOOST_RESERVE_MINUTES = 30.0
+# Hysteresis around the normal target. A hold that is already running may
+# continue a little below the target, and a new charge is only started once
+# the tank has dropped meaningfully. Without this, the plan alternates between
+# hold and heat every time the tank crosses the target.
+HOLD_HYSTERESIS_C = 2.5
+MIN_CHARGE_DEFICIT_C = 2.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,8 +51,11 @@ def optimize_horizon(
     safety_request: bool,
     safety_force_request: bool,
     optimization_allowed: bool = True,
+    holding: bool = False,
 ) -> HorizonDecision:
     """Choose the current advisory intent using safety, demand, and prices."""
+    band = min(HOLD_HYSTERESIS_C, max(0.0, (normal_target - comfort_minimum) / 2))
+    hold_floor = normal_target - band if holding else normal_target
     if current_temperature is None:
         return _decision(
             "normal",
@@ -113,7 +122,7 @@ def optimize_horizon(
             )
 
         if not price_plan.window_active_now:
-            if current_temperature < normal_target:
+            if current_temperature < hold_floor:
                 return _decision(
                     "normal",
                     "precharge_wait_below_normal_target",
@@ -160,6 +169,13 @@ def optimize_horizon(
         )
 
     if price_plan.status == "price_charge_window":
+        if current_temperature > normal_target - MIN_CHARGE_DEFICIT_C:
+            return _decision(
+                "hold" if holding and current_temperature >= hold_floor else "normal",
+                "deficit_too_small_to_start_charge",
+                safe_margin_confidence,
+                demand,
+            )
         return _decision(
             "heat",
             "selected_price_window_active",
@@ -168,7 +184,7 @@ def optimize_horizon(
         )
 
     if price_plan.status in {"price_hold", "temperature_hold"}:
-        if current_temperature < normal_target:
+        if current_temperature < hold_floor:
             return _decision(
                 "normal",
                 "hold_guard_below_normal_target",

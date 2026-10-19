@@ -1,345 +1,51 @@
-# WaterSteer Roadmap
-
-This roadmap describes both implemented functionality and planned development.
-
-Status legend: **production-ready** · **implemented / validating** · **incomplete** · **experimental** · **planned**. The full audit, known bugs and entity plan are in [docs/AUDIT.md](docs/AUDIT.md).
-
-## Known bugs
-
-- Peak detection misbehaves with zero or negative median prices.
-- A temperature sensor without `unit_of_measurement` is treated as missing without a visible warning.
-- Binary sensors carry ~20 frequently changing attributes (recorder load).
-
-## 0.1 — Foundation and safe advisory control
-
-Status: **implemented / being validated**
-
-- Home Assistant custom integration
-- config flow
-- options flow with reload
-- standalone water-heater model
-- heat-pump-integrated DHW model
-- generic Boost / Block / Normal action configuration
-- DHW temperature input
-- electricity price input
-- optional DHW availability signal
-- optional DHW production-active signal
-- diagnostics
-- deterministic temperature classifier
-- configurable Absolute / Comfort / Normal / Precharge thresholds
-- `DHW allowed`, `DHW request`, and `Force request`
-- fail-safe behaviour
-- minimum thermal-confidence gate before any braking decision
-
-### Safety rule
-
-WaterSteer must not hold normal DHW production until the thermal-learning confidence reaches the configured threshold.
-
-Default threshold:
-
-```text
-50%
-```
-
-## 0.2 — Thermal learning
-
-Status: **implemented / collecting real-world data**
-
-- persistent thermal history
-- controlled five-minute sampling
-- rolling 72-hour thermal window
-- standby heat-loss estimation
-- DHW heating-rate estimation
-- heating-cycle inference without requiring a DHW-active sensor
-- projected temperature one hour ahead
-- estimated time to comfort minimum
-- thermal confidence
-- heating confidence
-- filtering of implausible thermal segments
-
-Next validation work:
-
-- compare learned loss rate with real installations
-- tune plausible loss/heating-rate bounds
-- verify mixed-tank and stratified-tank behaviour
-- improve projection beyond a fixed one-hour horizon
-
-## 0.3 — Usage learning
-
-Status: **implemented in first explainable version / validation next**
-
-- detect likely DHW draws from rapid temperature drops
-- persistent 42-day usage history
-- separate weekday and weekend profiles
-- time-of-day usage probability
-- next expected usage window
-- typical usage-drop estimation
-- usage-learning confidence
-- optional occupancy input
-- reduced demand weighting while explicitly away
-- no dependency on occupancy data
-
-Implemented improvements:
-
-- hybrid usage detection using both direct temperature drops and early recovery cycles
-- infer DHW heating from temperature rise when no explicit DHW-active signal is available
-- compare recovery timing against learned standby loss before inferring usage
-- suppress duplicate recovery events after a recent direct draw
-- expose direct vs recovery event diagnostics
-- group consecutive temperature-drop segments into one draw event
-- distinguish small, medium, and large draw impact
-- use separate confidence for weekday and weekend learning
-- expose a six-hour hourly demand forecast
-- estimate expected thermal usage impact over the next six hours
-- expose the next expected usage probability and typical impact
-- classify near-term demand as low, medium, or high
-- expose richer profile diagnostics
-
-Next validation work:
-
-- validate recovery-inferred events against known real DHW usage
-- tune early-recovery thresholds from real installations
-- validate draw-size thresholds against real installations
-- validate weekday/weekend confidence growth
-- tune probability and demand-level thresholds from real data
-- improve recurring demand-window detection beyond one-hour buckets
-- optionally learn holiday/away behaviour
-
-## 0.4 — Capability-based safe margin
-
-Status: **foundation implemented / cycle and simple estimators next**
-
-- unified `safe_margin` interface for the planner
-- thermal estimator preferred when temperature data is available
-- weak usage learning no longer reduces strong thermal confidence
-- usage adjustment only applied after its own confidence threshold
-- cycle estimator interface reserved for installations without temperature
-- simple estimator interface reserved for minimal-telemetry installations
-- DHW temperature is optional in configuration
-- standalone physical control is optional in configuration
-- advisory operation is the default when no active control is selected
-- simplified default Home Assistant entity surface
-- advanced learning and diagnostic entities disabled by default
-- unified `control_request`: `hold`, `normal`, `heat`, `force_heat`, `precharge`, or `boost`
-
-### Thermal autonomy
-
-
-Status: **implemented in advisory mode / validation next**
-
-- passive autonomy from current DHW temperature and learned standby loss
-- demand-adjusted autonomy from the six-hour learned usage forecast
-- predicted DHW temperature after six hours
-- autonomy confidence
-- explicit prediction basis diagnostics
-- demand adjustment only after minimum usage-learning confidence
-- thermal-only fallback while usage learning is immature
-- no physical control output from the autonomy model
-
-Next validation work:
-
-- compare predicted autonomy against real temperature trajectories
-- tune the minimum usage-confidence threshold from real installations
-- evaluate conservative handling of expected demand within hourly buckets
-- extend beyond the current six-hour learned demand horizon
-
-## 0.5 — Price planner and peak avoidance
-
-Status: **advisory implementation in progress / field validation next**
-
-The price planner combines:
-
-- current DHW temperature
-- projected thermal decay
-- time to comfort minimum
-- learned usage probability
-- next expected usage
-- occupancy modifier
-- heating-rate estimate
-- expected charge duration
-- current and future electricity prices
-
-Implemented entities:
-
-```text
-sensor.watersteer_dhw_price_plan_status
-sensor.watersteer_next_planned_dhw_charge
-sensor.watersteer_expected_dhw_charge_duration
-sensor.watersteer_planned_dhw_target
-sensor.watersteer_selected_dhw_charge_price
-```
-
-Advisory plan states:
-
-```text
-learning
-unavailable
-temperature_hold
-price_hold
-price_charge_window
-peak_precharge
-comfort_recovery
-normal_operation
-```
-
-Rules:
-
-- cheap electricity alone must never trigger heating
-- comfort always overrides price
-- low-confidence models must be conservative
-- price hold is only allowed when thermal margin is sufficient
-- learned usage risk must be considered before delaying DHW
-- the selected charge window must fit before the predicted comfort deadline
-- a safety reserve is kept before that deadline
-- a learned DHW heating rate is required for timed price planning
-- no physical control action is executed unless active control is explicitly enabled
-- detect clear price peaks relative to the future-price baseline
-- avoid planning normal charge windows inside detected peaks
-- precharge before a peak when the safe margin would otherwise expire during the peak
-
-Field-validation focus before active control:
-
-- verify the selected price window against the actual price entity
-- compare predicted charge duration with actual DHW heating cycles
-- compare planning deadline with observed comfort-floor crossings
-- watch for false `price_hold` decisions around real morning/evening draws
-- verify behavior when tomorrow's prices are not published yet
-
-## 0.5.1 — Demand predictor and rolling horizon optimizer
-
-Status: **implemented in advisory form / validation next**
-
-- 24-hour statistical DHW demand forecast
-- weekday/weekend profile remains the deterministic fallback
-- explicit occupancy modifier
-- optional local Random Forest backend (experimental, disabled since 0.5.2)
-- automatic statistical fallback when ML is unavailable or immature
-- rolling horizon policy combines safe margin, demand, occupancy, price plan and peak timing
-- missing DHW temperature fails open to `normal`
-- missing current price input fails open to `normal`
-- future `peak_precharge` windows do not trigger early
-- precharge is suppressed at or above the precharge target
-- `precharge` means normal DHW production moved earlier in time
-- `force_heat` means normal DHW heating now regardless of price
-- `force_heat` latches critical recovery after the absolute minimum is reached and remains active until the comfort minimum recovers
-- heat-pump integrations may map `force_heat` to their emergency/Extra Hot Water action
-- extraordinary `boost` is a separate last-resort pre-peak intent
-- boost requires explicit occupancy, trusted demand forecast and evidence that normal precharge cannot bridge the expensive block
-
-Validation focus:
-
-- compare 24-hour predicted demand with actual DHW use
-- validate occupancy suppression during workday-away periods
-- validate that precharge starts only inside the selected window
-- validate boost remains rare and only appears in genuine high-risk peak scenarios
-- compare statistical and ML backends once sufficient history is available
-
-## 0.5.2 — Safety supervisor
-
-Status: **implemented / validating**
-
-- persistent critical-recovery latch (survives restarts)
-- comfort-recovery escalation to `force_heat` when allow-only recovery does not warm the tank
-- maximum continuous hold with lockout
-- `hold` never published below the comfort minimum
-- invalid thresholds keep protection with default thresholds and suspend optimization
-- Random Forest backend disabled (experimental)
-- thermal learning confidence sensor re-enabled for existing installations
-
-## 0.5.3 — Simplified entity surface
-
-Status: **planned**
-
-- new Status and Safety entities
-- Hot water forecast and Learning built on existing entities
-- deprecation path for redundant entities, see docs/AUDIT.md
-
-## 0.6 — Active control
-
-Status: **not yet enabled**
-
-- execute generic Block action
-- execute Normal action
-- execute Boost action
-- minimum runtime
-- minimum hold duration
-- cooldown
-- anti-cycling
-- command deduplication
-- restore normal heat-pump operation after failure
-- fail-open behaviour
-- action result diagnostics
-
-Active control is a separate explicit mode. Advisory planning remains fully functional without selecting any physical control path.
-
-## 0.7 — PumpSteer cooperation
-
-Status: **planned**
-
-WaterSteer must remain independent from PumpSteer.
-
-Optional cooperation will use normal Home Assistant entities.
-
-Possible PumpSteer inputs:
-
-```text
-heating_demand
-indoor_margin
-braking
-thermal_outlook
-```
-
-Possible WaterSteer outputs:
-
-```text
-dhw_demand
-planned_dhw_start
-expected_dhw_duration
-dhw_active
-```
-
-Goal:
-
-- avoid optional DHW precharge when building heating demand is high
-- never delay DHW when the comfort floor is at risk
-
-## 0.8 — Explainability and long-term diagnostics
-
-Status: **planned**
-
-- reason codes for every planner decision
-- decision history
-- learned-profile summaries
-- daily DHW cycle count
-- expected vs actual heating duration
-- expected vs actual thermal decay
-- savings estimates
-- confidence trend
-- planner quality diagnostics
-
-## 1.0 — Stable release
-
-Target characteristics:
-
-- validated thermal learning
-- validated usage learning
-- future-price planning
-- safe active control
-- robust restart recovery
-- complete diagnostics
-- documented fail-safe behaviour
-- HACS-ready public release
-- stable configuration migration path
-- comprehensive tests
-
-## Long-term principle
-
-WaterSteer should understand:
-
-```text
-WHEN will hot water probably be needed?
-HOW MUCH useful hot water will remain?
-WHEN is the safest and cheapest time to replenish it?
-```
-
-All optimization must remain subordinate to DHW comfort and system safety.
+# WaterSteer roadmap
+
+Status legend: **production-ready** · **implemented / validating** · **incomplete** · **experimental** · **planned**.
+
+Nothing is marked production-ready yet: every part below still needs field validation on real installations before a 1.0 release.
+
+## Implemented / validating
+
+| Area | Content |
+| --- | --- |
+| Integration | Config and options flow, diagnostics, HACS layout, English and Swedish translations |
+| Thermal learning | Persistent 72 h history; standby loss fitted over whole cooling runs (linear, or Newton cooling with room temperature estimate); heating rate; confidence with leave-one-out prediction error |
+| Usage learning | Persistent 42-day history; direct and recovery-inferred draws without double counting; weekday/weekend hourly profiles; optional occupancy |
+| Demand forecast | 24 h statistical forecast |
+| Price planning | Cheapest safe window before the comfort deadline; spread-based peak detection; precharge before peaks |
+| Shadow price planner | 15-minute simulation of normal operation vs WaterSteer's plan; vetoes holds that would breach comfort; relative expected saving |
+| Safety supervisor | Persistent critical-recovery latch; comfort-recovery escalation; maximum continuous hold with lockout; no hold below comfort; fail-open on missing temperature; safe defaults on invalid limits |
+| Charging | Planned charges finish at their target (hysteresis); extra hot water assists when the heat pump does not start on its own; hold hysteresis and minimum charge size prevent cycling |
+| Closed-loop test | Four simulated days in Active control against a tank and heat-pump model, for low- and high-start heat pumps: tank stays above 43 °C after learning, < 20 % of heat in the most expensive hours, few lever changes per day |
+| Arbitration | One decision point mapping to two physical levers (block, extra hot water), a user status and a human explanation; external heat source (iBoost) suppresses optional preheating |
+| Active control | Optional Mode select; idempotent, rate-limited blocking, immediate safety direction; respects manual extra hot water; releases on mode change, unload and Home Assistant stop |
+| Entity surface | Status, Mode, Hot water remaining, Thermal learning confidence, Expected saving, Safety, Control request; everything else disabled diagnostic for new installs |
+
+## Experimental
+
+- Random Forest demand backend — present in code, disabled. Only to be re-enabled if it beats the statistical profile on held-out weeks (Brier score and simulated comfort breaches) and runs off the event loop.
+
+## Known limitations and bugs
+
+- The shadow planner's model of "normal heat-pump behaviour" (start halfway between comfort and normal target, stop at normal target) is an approximation; the saving figure is relative and unvalidated.
+- Cost is expressed as heated degrees × price; tank volume and COP are not modelled, so there is no saving in kronor yet.
+- A hold can delay the heat pump's legionella program by up to the maximum hold time.
+- If Home Assistant crashes (no stop event) a block set in Active control stays until Home Assistant is back.
+- The cycle- and schedule-based margin estimators for installations without a temperature sensor are interfaces only.
+- Demand profiles use one-hour buckets.
+
+## Planned
+
+1. **Field validation** — compare predicted temperature 6 h ahead with the outcome and show the error as a diagnostic trend; tune defaults.
+2. **Savings in kronor** — optional tank volume and COP (or measured heat-pump energy) to turn the relative saving into money, and a realized-savings counter.
+3. **Legionella awareness** — optional entity or schedule so WaterSteer never holds during the legionella cycle.
+4. **PumpSteer cooperation** — avoid optional DHW precharge when space-heating demand is high; never delay DHW at the comfort floor.
+5. **Repairs** — Home Assistant repair issues for deprecated entities one release before they are disabled.
+6. **1.0** — after a full heating season of advisory and active data.
+
+## Principles
+
+- Comfort and safety are never traded for price.
+- Learn the system, not the controller: models estimate, rules decide.
+- Fail open: when in doubt, the heat pump runs on its own.
+- Everything optional must stay optional.

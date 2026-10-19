@@ -86,8 +86,15 @@ def arbitrate(
     external_heating_active: bool,
     optimization_ready: bool,
     context: ExplanationContext,
+    heating_assist: bool = False,
 ) -> ControlOutput:
-    """Return the single final output for this update cycle."""
+    """Return the single final output for this update cycle.
+
+    ``heating_assist`` is set when a planned heating period did not make the
+    tank warm up on its own: many heat pumps only start DHW production far
+    below the planned target, so unblocking alone does nothing and extra hot
+    water is needed to actually move heating to the cheap period.
+    """
     if mode == MODE_OFF:
         return ControlOutput(
             intent="normal",
@@ -109,7 +116,8 @@ def arbitrate(
     return ControlOutput(
         intent=intent,
         block=intent == "hold",
-        extra_hot_water=intent in {"force_heat", "boost"},
+        extra_hot_water=intent in {"force_heat", "boost"}
+        or (heating_assist and intent in {"heat", "precharge"}),
         status=status,
         explanation=_explain(status, reason, context),
         reason=reason,

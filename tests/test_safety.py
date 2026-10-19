@@ -138,3 +138,70 @@ def test_restore_ignores_malformed_state() -> None:
 
     assert supervisor.force_latched is False
     assert supervisor.hold_since is None
+
+
+def test_planned_charge_finishes_even_if_plan_flips_to_hold() -> None:
+    """A started cheap charge runs to its target instead of dithering."""
+    from custom_components.watersteer.safety import ChargeController
+
+    charge = ChargeController()
+    targets = {"heat": 52.5, "precharge": 55.0}
+
+    first = charge.evaluate(
+        now=0, intent="heat", reason="window", temperature=47.0, target_for=targets
+    )
+    flipped = charge.evaluate(
+        now=600,
+        intent="hold",
+        reason="safe_to_hold_for_price_plan",
+        temperature=50.5,
+        target_for=targets,
+    )
+    done = charge.evaluate(
+        now=1200, intent="hold", reason="x", temperature=52.6, target_for=targets
+    )
+
+    assert first.intent == "heat"
+    assert flipped.intent == "heat"
+    assert flipped.reason == "finishing_planned_charge"
+    assert done.intent == "hold"
+
+
+def test_charge_requests_extra_hot_water_when_pump_does_not_start() -> None:
+    """Unblocking alone may not start the heat pump; assist after 15 minutes."""
+    from custom_components.watersteer.safety import ChargeController
+
+    charge = ChargeController()
+    targets = {"heat": 52.5, "precharge": 55.0}
+
+    assert not charge.evaluate(
+        now=0, intent="precharge", reason="w", temperature=48.0, target_for=targets
+    ).assist
+    assert charge.evaluate(
+        now=15 * MINUTE,
+        intent="precharge",
+        reason="w",
+        temperature=47.9,
+        target_for=targets,
+    ).assist
+
+
+def test_charge_does_not_override_hold_limits() -> None:
+    """Safety releases of a hold are never turned back into heating."""
+    from custom_components.watersteer.safety import ChargeController
+
+    charge = ChargeController()
+    targets = {"heat": 52.5, "precharge": 55.0}
+    charge.evaluate(
+        now=0, intent="heat", reason="w", temperature=47.0, target_for=targets
+    )
+
+    result = charge.evaluate(
+        now=60,
+        intent="force_heat",
+        reason="absolute_minimum_requires_immediate_heat",
+        temperature=39.0,
+        target_for=targets,
+    )
+    assert result.intent == "force_heat"
+    assert charge.intent is None
