@@ -10,7 +10,9 @@ from typing import Any
 MIN_PLANNING_CONFIDENCE = 50
 MIN_RESERVE_MINUTES = 30
 MAX_PRICE_HORIZON_HOURS = 48
-PEAK_PRICE_MULTIPLIER = 1.5
+PEAK_SPREAD_FRACTION = 0.7
+PEAK_MIN_RELATIVE_SPREAD = 0.3
+PEAK_MIN_ABSOLUTE_SPREAD = 1e-6
 
 
 @dataclass(frozen=True, slots=True)
@@ -310,8 +312,9 @@ def _find_next_peak(
     if len(future) < 3:
         return None
 
-    baseline = median(slot.price for slot in future)
-    threshold = baseline * PEAK_PRICE_MULTIPLIER
+    threshold = _peak_threshold([slot.price for slot in future])
+    if threshold is None:
+        return None
     peak_slots = [slot for slot in future if slot.price >= threshold]
     if not peak_slots:
         return None
@@ -328,6 +331,32 @@ def _find_next_peak(
         prices.append(slot.price)
 
     return start, end, sum(prices) / len(prices)
+
+
+def _peak_threshold(prices: list[float]) -> float | None:
+    """Return the price above which a slot counts as a peak.
+
+    Based on the spread between cheap and expensive slots rather than a
+    multiple of the median, so it also works for zero or negative prices and
+    does not invent peaks on flat days.
+    """
+    ordered = sorted(prices)
+    low = _percentile(ordered, 0.10)
+    high = _percentile(ordered, 0.90)
+    spread = high - low
+    baseline = abs(median(ordered))
+    if spread <= max(PEAK_MIN_RELATIVE_SPREAD * baseline, PEAK_MIN_ABSOLUTE_SPREAD):
+        return None
+    return low + PEAK_SPREAD_FRACTION * spread
+
+
+def _percentile(ordered: list[float], fraction: float) -> float:
+    """Linear-interpolated percentile of an already sorted list."""
+    position = (len(ordered) - 1) * fraction
+    lower = int(position)
+    upper = min(lower + 1, len(ordered) - 1)
+    weight = position - lower
+    return ordered[lower] * (1 - weight) + ordered[upper] * weight
 
 
 def _cheapest_contiguous_window(

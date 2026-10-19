@@ -295,3 +295,30 @@ def test_peak_precharge_is_not_created_above_precharge_target() -> None:
         result.planned_target != pytest.approx(55.0)
         or result.window_active_now is False
     )
+
+
+def test_peak_detection_handles_flat_and_negative_prices() -> None:
+    """Flat days have no peak; negative prices do not make everything a peak."""
+    from datetime import UTC, datetime, timedelta
+
+    from custom_components.watersteer.price_planner import PriceSlot, _find_next_peak
+
+    now = datetime(2026, 5, 1, 0, tzinfo=UTC)
+
+    def slots(prices):
+        return tuple(
+            PriceSlot(
+                start=now + timedelta(hours=i),
+                end=now + timedelta(hours=i + 1),
+                price=p,
+            )
+            for i, p in enumerate(prices)
+        )
+
+    assert _find_next_peak(slots([0.50, 0.52, 0.51, 0.49, 0.50, 0.51]), now) is None
+
+    negative = [-0.10, -0.20, -0.15, 0.40, 0.45, -0.05, -0.10, -0.12]
+    peak = _find_next_peak(slots(negative), now)
+    assert peak is not None
+    assert peak[0] == now + timedelta(hours=3)
+    assert peak[1] == now + timedelta(hours=5)

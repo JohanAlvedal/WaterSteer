@@ -361,6 +361,17 @@ class WaterSteerSensor(
                 "required_confidence": data["minimum_thermal_confidence"],
                 "observed_hours": round(data["thermal_observation_hours"], 1),
                 "usage_observed_days": data["usage_observed_days"],
+                "loss_model": data["thermal_loss_model"],
+                "room_temperature_estimate": (
+                    round(data["thermal_ambient_estimate"], 1)
+                    if data["thermal_ambient_estimate"] is not None
+                    else None
+                ),
+                "prediction_error_6h": (
+                    round(data["thermal_validation_error"], 2)
+                    if data["thermal_validation_error"] is not None
+                    else None
+                ),
             }
 
         if key in {

@@ -102,6 +102,11 @@ class DhwUsageModel:
         """Initialize an empty usage model."""
         self._samples: list[UsageSample] = []
         self._events: list[UsageEvent] = []
+        self._cache: dict[tuple[Any, ...], Any] = {}
+
+    def _invalidate(self) -> None:
+        """Drop cached profile statistics after the history changed."""
+        self._cache.clear()
 
     def add_observation(
         self,
@@ -147,6 +152,7 @@ class DhwUsageModel:
 
         self._samples.append(sample)
         self._purge_old(timestamp)
+        self._invalidate()
         return True
 
     @staticmethod
@@ -267,11 +273,18 @@ class DhwUsageModel:
             ):
                 return
 
-        expected_passive_drop = standby_loss_c_per_hour * actual_hours
-        inferred_drop = max(
-            RECOVERY_MIN_INFERRED_DROP_C,
-            temperature_drop - expected_passive_drop,
+        # Draws already detected directly since the baseline explain part of
+        # the early recovery; only the unexplained remainder is a new event.
+        explained_drop = sum(
+            event.drop_c
+            for event in self._events
+            if event.source == "direct" and event.timestamp >= baseline.timestamp
         )
+        expected_passive_drop = standby_loss_c_per_hour * actual_hours
+        unexplained_drop = temperature_drop - expected_passive_drop - explained_drop
+        if explained_drop > 0 and unexplained_drop < RECOVERY_MIN_INFERRED_DROP_C:
+            return
+        inferred_drop = max(RECOVERY_MIN_INFERRED_DROP_C, unexplained_drop)
         self._events.append(
             UsageEvent(
                 timestamp=current.timestamp,
@@ -454,6 +467,12 @@ class DhwUsageModel:
 
     def _bucket_probability(self, day_type: str, hour: int) -> float:
         """Return historical event probability for a day-type/hour bucket."""
+        key = ("probability", day_type, hour)
+        if key not in self._cache:
+            self._cache[key] = self._compute_bucket_probability(day_type, hour)
+        return self._cache[key]
+
+    def _compute_bucket_probability(self, day_type: str, hour: int) -> float:
         exposure_days = {
             sample.date_key
             for sample in self._samples
@@ -471,6 +490,16 @@ class DhwUsageModel:
 
     def _bucket_typical_drop(self, day_type: str, hour: int) -> float | None:
         """Return the median learned event size for one profile bucket."""
+        key = ("drop", day_type, hour)
+        if key not in self._cache:
+            self._cache[key] = self._compute_bucket_typical_drop(day_type, hour)
+        return self._cache[key]
+
+    def _compute_bucket_typical_drop(
+        self,
+        day_type: str,
+        hour: int,
+    ) -> float | None:
         drops = [
             event.drop_c
             for event in self._events
@@ -480,6 +509,12 @@ class DhwUsageModel:
 
     def _observed_days_for_type(self, day_type: str) -> int:
         """Return distinct observed dates for the selected day type."""
+        key = ("days", day_type)
+        if key not in self._cache:
+            self._cache[key] = self._compute_observed_days(day_type)
+        return self._cache[key]
+
+    def _compute_observed_days(self, day_type: str) -> int:
         return len(
             {sample.date_key for sample in self._samples if sample.day_type == day_type}
         )
@@ -621,6 +656,7 @@ class DhwUsageModel:
         events.sort(key=lambda item: item.timestamp)
         self._samples = samples
         self._events = events
+        self._invalidate()
 
         newest = max(
             [item.timestamp for item in samples]

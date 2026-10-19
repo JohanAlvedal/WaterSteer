@@ -463,3 +463,34 @@ def test_recovery_learning_infers_heating_without_explicit_signal() -> None:
 
     assert estimate.event_count == 1
     assert estimate.recovery_event_count == 1
+
+
+def test_direct_draw_is_not_counted_again_by_recovery() -> None:
+    """An early reheat explained by a detected draw adds no second event."""
+    model = DhwUsageModel()
+    start = _weekday(0, 6)
+    points = [
+        (0, 55.0, True),
+        (5, 55.0, False),
+        (120, 54.0, False),
+        (125, 49.0, False),
+        (190, 48.5, False),
+        (195, 48.5, True),
+    ]
+    for minutes, temperature, heating in points:
+        moment = start + timedelta(minutes=minutes)
+        model.add_observation(
+            timestamp=moment.timestamp(),
+            temperature=temperature,
+            local_datetime=moment,
+            heating_active=heating,
+            standby_loss_c_per_hour=0.5,
+        )
+
+    estimate = model.estimate(
+        now_local=start + timedelta(minutes=195),
+        occupancy=True,
+    )
+
+    assert estimate.direct_event_count == 1
+    assert estimate.recovery_event_count == 0
