@@ -13,7 +13,6 @@ from homeassistant.config_entries import (
 )
 from homeassistant.core import callback
 from homeassistant.helpers.selector import (
-    ActionSelector,
     EntitySelector,
     EntitySelectorConfig,
     NumberSelector,
@@ -26,10 +25,13 @@ from homeassistant.helpers.selector import (
 
 from .const import (
     CONF_ABSOLUTE_MINIMUM,
+    CONF_BLOCK_ENTITY,
     CONF_COMFORT_ESCALATION_MINUTES,
     CONF_COMFORT_MINIMUM,
     CONF_DHW_TEMPERATURE_ENTITY,
     CONF_ELECTRICITY_PRICE_ENTITY,
+    CONF_EXTERNAL_HEATING_ENTITY,
+    CONF_EXTRA_HOT_WATER_ENTITY,
     CONF_HEAT_PUMP_BLOCK_ACTION,
     CONF_HEAT_PUMP_BOOST_ACTION,
     CONF_HEAT_PUMP_DHW_ACTIVE_ENTITY,
@@ -56,6 +58,8 @@ from .const import (
 )
 
 CONTROL_KEYS = (
+    CONF_BLOCK_ENTITY,
+    CONF_EXTRA_HOT_WATER_ENTITY,
     CONF_STANDALONE_CONTROL_SWITCH,
     CONF_STANDALONE_POWER_SENSOR,
     CONF_HEAT_PUMP_DHW_ACTIVE_ENTITY,
@@ -89,6 +93,11 @@ def _primary_schema() -> vol.Schema:
             vol.Optional(CONF_OCCUPANCY_ENTITY): EntitySelector(
                 EntitySelectorConfig(
                     domain=["binary_sensor", "input_boolean", "person"]
+                )
+            ),
+            vol.Optional(CONF_EXTERNAL_HEATING_ENTITY): EntitySelector(
+                EntitySelectorConfig(
+                    domain=["binary_sensor", "input_boolean", "switch"]
                 )
             ),
         }
@@ -196,15 +205,15 @@ def _heat_pump_schema() -> vol.Schema:
     """Return the heat-pump control schema."""
     return vol.Schema(
         {
-            vol.Optional(CONF_HEAT_PUMP_DHW_AVAILABLE_ENTITY): EntitySelector(
-                EntitySelectorConfig(domain="binary_sensor")
+            vol.Optional(CONF_BLOCK_ENTITY): EntitySelector(
+                EntitySelectorConfig(domain=["switch", "input_boolean"])
+            ),
+            vol.Optional(CONF_EXTRA_HOT_WATER_ENTITY): EntitySelector(
+                EntitySelectorConfig(domain=["switch", "input_boolean"])
             ),
             vol.Optional(CONF_HEAT_PUMP_DHW_ACTIVE_ENTITY): EntitySelector(
                 EntitySelectorConfig(domain=["binary_sensor", "sensor"])
             ),
-            vol.Optional(CONF_HEAT_PUMP_BOOST_ACTION): ActionSelector(),
-            vol.Optional(CONF_HEAT_PUMP_BLOCK_ACTION): ActionSelector(),
-            vol.Optional(CONF_HEAT_PUMP_NORMAL_ACTION): ActionSelector(),
         }
     )
 
@@ -271,6 +280,11 @@ class WaterSteerConfigFlow(ConfigFlow, domain=DOMAIN):
                     vol.Optional(CONF_OCCUPANCY_ENTITY): EntitySelector(
                         EntitySelectorConfig(
                             domain=["binary_sensor", "input_boolean", "person"]
+                        )
+                    ),
+                    vol.Optional(CONF_EXTERNAL_HEATING_ENTITY): EntitySelector(
+                        EntitySelectorConfig(
+                            domain=["binary_sensor", "input_boolean", "switch"]
                         )
                     ),
                 }

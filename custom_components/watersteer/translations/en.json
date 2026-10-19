@@ -18,17 +18,19 @@
         "data": {
           "dhw_temperature_entity": "DHW temperature sensor",
           "electricity_price_entity": "Electricity price sensor",
-          "occupancy_entity": "Occupancy entity"
+          "occupancy_entity": "Occupancy entity",
+          "external_heating_entity": "Other heat source active (optional)"
         },
         "data_description": {
           "dhw_temperature_entity": "Sensor that represents the current domestic hot water temperature.",
           "electricity_price_entity": "Sensor that represents the current electricity price. Future price data will be added by the price planner.",
-          "occupancy_entity": "Optional binary sensor, input boolean, or person entity used only to refine learned DHW demand. WaterSteer also works without occupancy data."
+          "occupancy_entity": "Optional binary sensor, input boolean, or person entity used only to refine learned DHW demand. WaterSteer also works without occupancy data.",
+          "external_heating_entity": "For example an iBoost or immersion heater. While it is on, WaterSteer does not preheat."
         }
       },
       "thresholds": {
         "title": "DHW temperature thresholds",
-        "description": "Set the temperature bands used by the shadow classifier. WaterSteer does not execute physical control yet. The values must be ordered from lowest to highest.",
+        "description": "Temperature limits for the hot water tank, lowest first. Comfort always wins over price.",
         "data": {
           "absolute_minimum": "Absolute minimum",
           "comfort_minimum": "Comfort minimum",
@@ -41,8 +43,8 @@
         "data_description": {
           "absolute_minimum": "At or below this temperature WaterSteer requests immediate forced heating.",
           "comfort_minimum": "Below this temperature WaterSteer requests comfort recovery even if electricity is expensive.",
-          "normal_target": "At or above this temperature the shadow classifier considers stored hot water sufficient and would hold normal DHW heating.",
-          "precharge_target": "Upper target reserved for future price-based precharging. Cheap electricity alone will never be enough to trigger heating.",
+          "normal_target": "At or above this temperature stored hot water is considered sufficient, so heating may be held for cheaper electricity.",
+          "precharge_target": "Target when heating ahead of an expensive period. Cheap electricity alone never triggers heating.",
           "min_thermal_confidence": "WaterSteer will not hold or block normal DHW production until thermal learning confidence reaches this percentage. Default: 50%.",
           "max_hold_hours": "Longest time WaterSteer may request that DHW production is held. After this, it requests normal operation for at least one hour.",
           "comfort_escalation_minutes": "If the tank stays below the comfort minimum this long without warming up, WaterSteer escalates to force_heat."
@@ -50,32 +52,28 @@
       },
       "standalone_control": {
         "title": "Standalone water heater",
-        "description": "Configure the relay or contactor used to enable the water heater. WaterSteer 0.1 only observes these inputs and does not switch the heater yet.",
+        "description": "Optional. Select the switch WaterSteer may control when Mode is set to Active control.",
         "data": {
           "standalone_control_switch": "Water heater control switch",
           "standalone_power_sensor": "Water heater power sensor"
         },
         "data_description": {
-          "standalone_control_switch": "Switch entity that controls the contactor, relay, or other enable signal for the standalone water heater.",
+          "standalone_control_switch": "Switch that enables the water heater when ON. WaterSteer only switches it in Active control mode.",
           "standalone_power_sensor": "Optional power sensor for the water heater. This can later help WaterSteer distinguish commanded operation from actual heating."
         }
       },
       "heat_pump_control": {
         "title": "Heat pump domestic hot water",
-        "description": "Configure any DHW signals your heat-pump integration exposes. All status signals are optional; WaterSteer must also work when no explicit DHW production-active signal exists.",
+        "description": "Optional. Select the entities WaterSteer may switch when Mode is set to Active control. Leave empty to only get recommendations.",
         "data": {
-          "heat_pump_dhw_available_entity": "DHW production available entity",
           "heat_pump_dhw_active_entity": "DHW production active entity",
-          "heat_pump_boost_action": "DHW boost action",
-          "heat_pump_block_action": "DHW block action",
-          "heat_pump_normal_action": "DHW normal action"
+          "block_entity": "Block hot water switch",
+          "extra_hot_water_entity": "Extra hot water switch"
         },
         "data_description": {
-          "heat_pump_dhw_available_entity": "Optional binary sensor that indicates whether domestic hot water production is available or permitted. This does not mean the heat pump is currently producing hot water.",
           "heat_pump_dhw_active_entity": "Optional advanced signal. Select this only if your heat-pump integration exposes an entity that indicates actual DHW production. Many heat pumps do not provide this signal.",
-          "heat_pump_boost_action": "Optional Home Assistant action that actively requests domestic hot water production, for example Extra hot water, Temporary luxury, or DHW boost.",
-          "heat_pump_block_action": "Optional Home Assistant action that blocks or disables normal domestic hot water production.",
-          "heat_pump_normal_action": "Optional Home Assistant action that returns domestic hot water operation to its normal heat-pump setting."
+          "block_entity": "Switch or input boolean that blocks hot water production when ON.",
+          "extra_hot_water_entity": "Switch or input boolean that starts extra hot water when ON."
         }
       }
     },
@@ -92,18 +90,20 @@
           "system_type": "System type",
           "dhw_temperature_entity": "DHW temperature sensor",
           "electricity_price_entity": "Electricity price sensor",
-          "occupancy_entity": "Occupancy entity"
+          "occupancy_entity": "Occupancy entity",
+          "external_heating_entity": "Other heat source active (optional)"
         },
         "data_description": {
           "system_type": "Choose a standalone water heater or a heat pump with integrated domestic hot water.",
           "dhw_temperature_entity": "Sensor that represents the current domestic hot water temperature.",
           "electricity_price_entity": "Sensor that represents the current electricity price.",
-          "occupancy_entity": "Optional binary sensor, input boolean, or person entity used only to refine learned DHW demand."
+          "occupancy_entity": "Optional binary sensor, input boolean, or person entity used only to refine learned DHW demand.",
+          "external_heating_entity": "For example an iBoost or immersion heater. While it is on, WaterSteer does not preheat."
         }
       },
       "thresholds": {
         "title": "DHW temperature thresholds",
-        "description": "Set the temperature bands used by the shadow classifier. These settings do not execute physical control yet.",
+        "description": "Temperature limits for the hot water tank, lowest first. Comfort always wins over price.",
         "data": {
           "absolute_minimum": "Absolute minimum",
           "comfort_minimum": "Comfort minimum",
@@ -116,8 +116,8 @@
         "data_description": {
           "absolute_minimum": "At or below this temperature WaterSteer requests immediate forced heating.",
           "comfort_minimum": "Below this temperature WaterSteer requests comfort recovery.",
-          "normal_target": "At or above this temperature WaterSteer would hold normal DHW heating.",
-          "precharge_target": "Upper target reserved for future price-based precharging.",
+          "normal_target": "At or above this temperature stored hot water is considered sufficient, so heating may be held for cheaper electricity.",
+          "precharge_target": "Target when heating ahead of an expensive period. Cheap electricity alone never triggers heating.",
           "min_thermal_confidence": "WaterSteer will not hold or block normal DHW production until thermal learning confidence reaches this percentage. Default: 50%.",
           "max_hold_hours": "Longest time WaterSteer may request that DHW production is held. After this, it requests normal operation for at least one hour.",
           "comfort_escalation_minutes": "If the tank stays below the comfort minimum this long without warming up, WaterSteer escalates to force_heat."
@@ -125,32 +125,28 @@
       },
       "standalone_control": {
         "title": "Standalone water heater",
-        "description": "Configure the relay or contactor used to enable the water heater.",
+        "description": "Optional. Select the switch WaterSteer may control when Mode is set to Active control.",
         "data": {
           "standalone_control_switch": "Water heater control switch",
           "standalone_power_sensor": "Water heater power sensor"
         },
         "data_description": {
-          "standalone_control_switch": "Switch entity that controls the contactor, relay, or other enable signal for the standalone water heater.",
+          "standalone_control_switch": "Switch that enables the water heater when ON. WaterSteer only switches it in Active control mode.",
           "standalone_power_sensor": "Optional power sensor for the water heater."
         }
       },
       "heat_pump_control": {
         "title": "Heat pump domestic hot water",
-        "description": "Configure any DHW signals your heat-pump integration exposes. All status signals are optional.",
+        "description": "Optional. Select the entities WaterSteer may switch when Mode is set to Active control. Leave empty to only get recommendations.",
         "data": {
-          "heat_pump_dhw_available_entity": "DHW production available entity",
           "heat_pump_dhw_active_entity": "DHW production active entity",
-          "heat_pump_boost_action": "DHW boost action",
-          "heat_pump_block_action": "DHW block action",
-          "heat_pump_normal_action": "DHW normal action"
+          "block_entity": "Block hot water switch",
+          "extra_hot_water_entity": "Extra hot water switch"
         },
         "data_description": {
-          "heat_pump_dhw_available_entity": "Optional binary sensor that indicates whether domestic hot water production is available or permitted. This does not mean the heat pump is currently producing hot water.",
           "heat_pump_dhw_active_entity": "Optional advanced signal. Select this only if your heat-pump integration exposes an entity that indicates actual DHW production. Many heat pumps do not provide this signal.",
-          "heat_pump_boost_action": "Optional Home Assistant action that requests domestic hot water production.",
-          "heat_pump_block_action": "Optional Home Assistant action that blocks or disables normal domestic hot water production.",
-          "heat_pump_normal_action": "Optional Home Assistant action that returns domestic hot water operation to normal."
+          "block_entity": "Switch or input boolean that blocks hot water production when ON.",
+          "extra_hot_water_entity": "Switch or input boolean that starts extra hot water when ON."
         }
       }
     },
@@ -169,7 +165,7 @@
   "entity": {
     "sensor": {
       "mode": {
-        "name": "Mode"
+        "name": "Input status"
       },
       "decision": {
         "name": "Decision"
@@ -241,13 +237,34 @@
         "name": "Control mode"
       },
       "safe_margin": {
-        "name": "Safe DHW margin"
+        "name": "Hot water remaining"
       },
       "safe_margin_confidence": {
         "name": "Safe margin confidence"
       },
       "control_request": {
-        "name": "Control request"
+        "name": "Control request",
+        "state": {
+          "hold": "Hold",
+          "normal": "Normal",
+          "heat": "Heat",
+          "force_heat": "Force heat",
+          "precharge": "Precharge",
+          "boost": "Boost"
+        }
+      },
+      "status": {
+        "name": "Status",
+        "state": {
+          "off": "Off",
+          "fallback": "Fallback",
+          "protecting": "Protecting hot water",
+          "holding": "Holding heating",
+          "preheating": "Preheating",
+          "heating": "Heating",
+          "learning": "Learning",
+          "allowing": "Normal operation"
+        }
       }
     },
     "binary_sensor": {
@@ -262,6 +279,22 @@
       },
       "usage_detected": {
         "name": "DHW usage detected"
+      },
+      "safety": {
+        "name": "Safety"
+      },
+      "extra_hot_water": {
+        "name": "Extra hot water request"
+      }
+    },
+    "select": {
+      "operating_mode": {
+        "name": "Mode",
+        "state": {
+          "advisory": "Advisory",
+          "active": "Active control",
+          "off": "Off"
+        }
       }
     }
   }

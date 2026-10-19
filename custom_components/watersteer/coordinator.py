@@ -20,14 +20,18 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
 from homeassistant.util.unit_conversion import TemperatureConverter
 
+from .actuator import DhwActuator, Lever
 from .autonomy_model import estimate_autonomy
 from .capability_model import estimate_safe_margin
 from .const import (
     CONF_ABSOLUTE_MINIMUM,
+    CONF_BLOCK_ENTITY,
     CONF_COMFORT_ESCALATION_MINUTES,
     CONF_COMFORT_MINIMUM,
     CONF_DHW_TEMPERATURE_ENTITY,
     CONF_ELECTRICITY_PRICE_ENTITY,
+    CONF_EXTERNAL_HEATING_ENTITY,
+    CONF_EXTRA_HOT_WATER_ENTITY,
     CONF_HEAT_PUMP_DHW_ACTIVE_ENTITY,
     CONF_HEAT_PUMP_DHW_AVAILABLE_ENTITY,
     CONF_MAX_HOLD_HOURS,
@@ -49,12 +53,20 @@ from .const import (
     DOMAIN,
     MODE_LEARNING,
     MODE_SAFETY,
+    SYSTEM_TYPE_STANDALONE,
 )
 from .controller import (
     DhwThresholds,
     apply_thermal_confidence_guard,
     classify_dhw_temperature,
     effective_thresholds,
+)
+from .decision import (
+    MODE_ADVISORY,
+    MODES,
+    ControlOutput,
+    ExplanationContext,
+    arbitrate,
 )
 from .demand_predictor import DhwDemandPredictor
 from .horizon_optimizer import optimize_horizon
@@ -144,6 +156,8 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # block the event loop. See docs/AUDIT.md.
         self.demand_predictor = DhwDemandPredictor(enable_ml=False)
         self.safety = DhwSafetySupervisor()
+        self.actuator = DhwActuator(hass)
+        self.mode = MODE_ADVISORY
         self._thermal_store: Store[dict[str, Any]] = Store(
             hass,
             _STORAGE_VERSION,
@@ -168,13 +182,61 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         usage_data = await self._usage_store.async_load()
         self.thermal_model.restore(thermal_data)
         self.usage_model.restore(usage_data)
-        self.safety.restore(await self._safety_store.async_load())
+        self._restore_control_state(await self._safety_store.async_load())
+
+    def _restore_control_state(self, data: dict[str, Any] | None) -> None:
+        """Restore safety, actuator and mode state (with legacy format)."""
+        if not isinstance(data, dict):
+            return
+        if "safety" not in data:
+            self.safety.restore(data)
+            return
+        self.safety.restore(data.get("safety"))
+        self.actuator.restore(data.get("actuator"))
+        if data.get("mode") in MODES:
+            self.mode = data["mode"]
+
+    def _control_state(self) -> dict[str, Any]:
+        """Return persisted control state."""
+        return {
+            "safety": self.safety.as_dict(),
+            "actuator": self.actuator.as_dict(),
+            "mode": self.mode,
+        }
+
+    def levers(self) -> tuple[Lever | None, Lever | None]:
+        """Return the configured block and extra-hot-water levers."""
+        config = self._config()
+        if config.get(CONF_SYSTEM_TYPE) == SYSTEM_TYPE_STANDALONE:
+            switch = config.get(CONF_STANDALONE_CONTROL_SWITCH)
+            return (Lever(switch, on_means_block=False) if switch else None), None
+        block = config.get(CONF_BLOCK_ENTITY)
+        extra = config.get(CONF_EXTRA_HOT_WATER_ENTITY)
+        return (
+            Lever(block) if block else None,
+            Lever(extra) if extra else None,
+        )
+
+    async def async_set_mode(self, mode: str) -> None:
+        """Change the control mode and apply it immediately."""
+        if mode not in MODES:
+            raise ValueError(mode)
+        self.mode = mode
+        await self._safety_store.async_save(self._control_state())
+        await self.async_refresh()
+
+    async def async_release(self) -> None:
+        """Release all levers WaterSteer holds and persist that."""
+        block, extra = self.levers()
+        await self.actuator.release(block, extra)
+        await self._safety_store.async_save(self._control_state())
 
     async def async_shutdown(self) -> None:
-        """Persist learning history before the integration unloads."""
+        """Stop updates, release levers and persist learning history."""
+        await super().async_shutdown()
         await self._thermal_store.async_save(self.thermal_model.as_dict())
         await self._usage_store.async_save(self.usage_model.as_dict())
-        await self._safety_store.async_save(self.safety.as_dict())
+        await self.async_release()
 
     def _config(self) -> dict[str, Any]:
         """Return effective configuration with options overriding setup data."""
@@ -372,9 +434,50 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             proposed_reason=horizon_decision.reason,
             warnings=(() if thresholds_valid else ("invalid_threshold_configuration",)),
         )
-        control_request = safety_result.intent
-        if self.safety.as_dict() != safety_before:
-            await self._safety_store.async_save(self.safety.as_dict())
+        external_heating_entity = config.get(CONF_EXTERNAL_HEATING_ENTITY)
+        external_heating_active = (
+            _binary_state_hint(self.hass.states.get(external_heating_entity)) is True
+            if external_heating_entity
+            else False
+        )
+        optimization_ready = (
+            thresholds_valid and thermal.loss_confidence >= minimum_thermal_confidence
+        )
+        output: ControlOutput = arbitrate(
+            mode=self.mode,
+            safety_intent=safety_result.intent,
+            safety_reason=safety_result.reason,
+            warnings=safety_result.warnings,
+            external_heating_active=external_heating_active,
+            optimization_ready=optimization_ready,
+            context=ExplanationContext(
+                temperature=dhw_temperature,
+                absolute_minimum=thresholds.absolute_minimum,
+                comfort_minimum=thresholds.comfort_minimum,
+                normal_target=thresholds.normal_target,
+                hold_minutes=safety_result.hold_minutes,
+                max_hold_hours=self.safety.max_hold_hours,
+                next_charge=price_plan.next_charge,
+                thermal_confidence=thermal.loss_confidence,
+                minimum_confidence=minimum_thermal_confidence,
+            ),
+        )
+        actuator_before = self.actuator.as_dict()
+        block_lever, extra_lever = self.levers()
+        actuator_report = await self.actuator.apply(
+            now=now.timestamp(),
+            mode=self.mode,
+            output=output,
+            block_lever=block_lever,
+            extra_lever=extra_lever,
+        )
+        control_request = output.intent
+        warnings = tuple(dict.fromkeys(output.warnings + actuator_report.warnings))
+        if (
+            self.safety.as_dict() != safety_before
+            or self.actuator.as_dict() != actuator_before
+        ):
+            await self._safety_store.async_save(self._control_state())
 
         if (thermal_observation_added or usage_observation_added) and (
             self._last_store_save is None
@@ -390,16 +493,25 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return {
             "mode": mode,
             "data_valid": data_valid,
-            "control_mode": "advisory",
+            "control_mode": self.mode,
+            "status": output.status,
+            "explanation": output.explanation,
+            "block": output.block,
+            "extra_hot_water": output.extra_hot_water,
+            "external_heating_active": external_heating_active,
+            "optimization_ready": optimization_ready,
+            "actuator_active": actuator_report.active,
+            "actuator_commands": list(actuator_report.commands),
+            "safety_problem": bool(warnings),
             "system_type": config[CONF_SYSTEM_TYPE],
             "decision": decision.classification,
             "decision_reason": decision.reason,
             "control_request": control_request,
-            "control_request_reason": safety_result.reason,
+            "control_request_reason": output.reason,
             "control_request_optimizer_intent": horizon_decision.intent,
             "control_request_optimizer_reason": horizon_decision.reason,
             "control_request_safety_override": safety_result.overridden,
-            "safety_warnings": list(safety_result.warnings),
+            "safety_warnings": list(warnings),
             "hold_minutes": safety_result.hold_minutes,
             "max_hold_hours": self.safety.max_hold_hours,
             "comfort_escalation_minutes": self.safety.comfort_escalation_minutes,
@@ -429,7 +541,7 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 for bucket in demand_forecast.buckets
             ],
             "raw_temperature_decision": raw_decision.classification,
-            "dhw_allowed": control_request != "hold",
+            "dhw_allowed": not output.block,
             "dhw_request": decision.request,
             "force_request": control_request == "force_heat",
             "force_recovery_active": safety_result.force_latched,

@@ -13,14 +13,19 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import PERCENTAGE, UnitOfTemperature, UnitOfTime
+from homeassistant.const import (
+    PERCENTAGE,
+    EntityCategory,
+    UnitOfTemperature,
+    UnitOfTime,
+)
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
 from .coordinator import WaterSteerDataUpdateCoordinator
+from .decision import STATUSES
+from .entity import device_info
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -32,13 +37,24 @@ class WaterSteerSensorEntityDescription(SensorEntityDescription):
 
 SENSORS: tuple[WaterSteerSensorEntityDescription, ...] = (
     WaterSteerSensorEntityDescription(
+        key="status",
+        translation_key="status",
+        device_class=SensorDeviceClass.ENUM,
+        options=list(STATUSES),
+        value_fn=lambda data: data["status"],
+    ),
+    WaterSteerSensorEntityDescription(
         key="mode",
         translation_key="mode",
+        entity_registry_enabled_default=False,
+        entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda data: data["mode"],
     ),
     WaterSteerSensorEntityDescription(
         key="control_mode",
         translation_key="control_mode",
+        entity_registry_enabled_default=False,
+        entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda data: data["control_mode"],
     ),
     WaterSteerSensorEntityDescription(
@@ -55,6 +71,7 @@ SENSORS: tuple[WaterSteerSensorEntityDescription, ...] = (
     WaterSteerSensorEntityDescription(
         key="dhw_temperature",
         translation_key="dhw_temperature",
+        entity_registry_enabled_default=False,
         device_class=SensorDeviceClass.TEMPERATURE,
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         state_class=SensorStateClass.MEASUREMENT,
@@ -148,8 +165,9 @@ SENSORS: tuple[WaterSteerSensorEntityDescription, ...] = (
         translation_key="safe_margin",
         device_class=SensorDeviceClass.DURATION,
         native_unit_of_measurement=UnitOfTime.MINUTES,
+        suggested_unit_of_measurement=UnitOfTime.HOURS,
+        suggested_display_precision=1,
         state_class=SensorStateClass.MEASUREMENT,
-        suggested_display_precision=0,
         value_fn=lambda data: data["safe_margin_minutes"],
     ),
     WaterSteerSensorEntityDescription(
@@ -163,11 +181,13 @@ SENSORS: tuple[WaterSteerSensorEntityDescription, ...] = (
     WaterSteerSensorEntityDescription(
         key="price_plan_status",
         translation_key="price_plan_status",
+        entity_registry_enabled_default=False,
         value_fn=lambda data: data["price_plan_status"],
     ),
     WaterSteerSensorEntityDescription(
         key="next_charge",
         translation_key="next_charge",
+        entity_registry_enabled_default=False,
         device_class=SensorDeviceClass.TIMESTAMP,
         value_fn=lambda data: data["price_plan_next_charge"],
     ),
@@ -268,9 +288,9 @@ class WaterSteerSensor(
     """Representation of a WaterSteer sensor."""
 
     _attr_has_entity_name = True
-    # Large, frequently changing forecast lists stay visible as attributes but
-    # are kept out of the recorder database.
-    _unrecorded_attributes = frozenset({"forecast_24h", "hourly_forecast"})
+    # Large, frequently changing forecast lists stay visible as attributes on
+    # diagnostic entities but are kept out of the recorder database.
+    _unrecorded_attributes = frozenset({"hourly_forecast", "explanation"})
 
     def __init__(
         self,
@@ -282,12 +302,12 @@ class WaterSteerSensor(
         super().__init__(coordinator)
         self.entity_description = description
         self._attr_unique_id = f"{entry.entry_id}_{description.key}"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.entry_id)},
-            name="WaterSteer",
-            manufacturer="WaterSteer",
-            model="DHW optimization controller",
-        )
+        self._attr_device_info = device_info(entry)
+        if (
+            not description.entity_registry_enabled_default
+            and description.entity_category is None
+        ):
+            self._attr_entity_category = EntityCategory.DIAGNOSTIC
 
     @property
     def native_value(self) -> Any:
@@ -296,65 +316,72 @@ class WaterSteerSensor(
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
-        """Return learning details on learning-related sensors."""
+        """Return a small, meaningful set of attributes per entity."""
         data = self.coordinator.data
+        key = self.entity_description.key
 
-        if self.entity_description.key == "control_request":
+        if key == "status":
+            return {
+                "explanation": data["explanation"],
+                "control_request": data["control_request"],
+                "mode": data["control_mode"],
+                "warnings": data["safety_warnings"],
+                "next_planned_heating": data["price_plan_next_charge"],
+            }
+
+        if key == "control_request":
             return {
                 "reason": data["control_request_reason"],
-                "confidence": data["control_request_confidence"],
+                "block": data["block"],
+                "extra_hot_water": data["extra_hot_water"],
                 "safety_override": data["control_request_safety_override"],
                 "optimizer_intent": data["control_request_optimizer_intent"],
                 "optimizer_reason": data["control_request_optimizer_reason"],
                 "safety_warnings": data["safety_warnings"],
-                "force_recovery_active": data["force_recovery_active"],
                 "hold_minutes": data["hold_minutes"],
-                "demand_prediction_backend": data["demand_prediction_backend"],
-                "demand_prediction_confidence": data["demand_prediction_confidence"],
-                "demand_peak_probability": data["demand_prediction_peak_probability"],
-                "expected_demand_drop_24h": data["demand_prediction_expected_drop_24h"],
-                "high_demand_hours_24h": data["demand_prediction_high_demand_hours"],
-                "normal_precharge_margin_minutes": data[
-                    "control_request_normal_precharge_margin"
-                ],
-                "boost_recommended": data["control_request_boost_recommended"],
-                "occupancy_state": data["occupancy_state"],
-                "price_plan_status": data["price_plan_status"],
-                "next_peak_start": data["price_plan_next_peak_start"],
-                "next_peak_end": data["price_plan_next_peak_end"],
-                "next_peak_price": data["price_plan_next_peak_price"],
-                "forecast_24h": data["demand_prediction_forecast"],
             }
 
-        if self.entity_description.key in {
+        if key == "safe_margin":
+            return {
+                "confidence": data["safe_margin_confidence"],
+                "demand_adjusted": data["safe_margin_usage_adjusted"],
+                "demand_level": data["demand_level"],
+                "next_expected_usage": data["next_expected_usage"],
+                "temperature_in_6h": (
+                    round(data["predicted_temperature_6h"], 1)
+                    if data["predicted_temperature_6h"] is not None
+                    else None
+                ),
+            }
+
+        if key == "learning_confidence":
+            return {
+                "usage_confidence": data["usage_learning_confidence"],
+                "optimization_ready": data["optimization_ready"],
+                "required_confidence": data["minimum_thermal_confidence"],
+                "observed_hours": round(data["thermal_observation_hours"], 1),
+                "usage_observed_days": data["usage_observed_days"],
+            }
+
+        if key in {
             "standby_loss",
             "heating_rate",
             "time_to_comfort",
-            "learning_confidence",
             "passive_autonomy",
             "predicted_autonomy",
             "predicted_temperature_6h",
             "autonomy_confidence",
-            "safe_margin",
             "safe_margin_confidence",
         }:
             return {
                 "observation_count": data["thermal_observation_count"],
-                "observation_hours": round(data["thermal_observation_hours"], 2),
                 "passive_segment_count": data["passive_segment_count"],
                 "heating_segment_count": data["heating_segment_count"],
                 "heating_confidence": data["heating_confidence"],
-                "minimum_braking_confidence": data["minimum_thermal_confidence"],
-                "braking_confidence_ready": data["braking_confidence_ready"],
                 "autonomy_basis": data["autonomy_basis"],
-                "demand_adjusted": data["autonomy_demand_adjusted"],
-                "usage_learning_confidence": data["usage_learning_confidence"],
-                "safe_margin_source": data["safe_margin_source"],
-                "safe_margin_usage_adjusted": data["safe_margin_usage_adjusted"],
-                "safe_margin_reason": data["safe_margin_reason"],
             }
 
-        if self.entity_description.key in {
+        if key in {
             "price_plan_status",
             "next_charge",
             "expected_charge_duration",
@@ -365,20 +392,11 @@ class WaterSteerSensor(
                 "reason": data["price_plan_reason"],
                 "charge_end": data["price_plan_charge_end"],
                 "planning_deadline": data["price_plan_deadline"],
-                "current_price": data["electricity_price"],
-                "selected_price": data["price_plan_selected_price"],
-                "savings_vs_current": data["price_plan_savings_vs_current"],
-                "price_slot_count": data["price_plan_slot_count"],
-                "planner_confidence": data["price_plan_confidence"],
-                "window_active_now": data["price_plan_window_active_now"],
                 "next_peak_start": data["price_plan_next_peak_start"],
                 "next_peak_end": data["price_plan_next_peak_end"],
-                "next_peak_price": data["price_plan_next_peak_price"],
-                "peak_avoidance_active": data["price_plan_peak_avoidance_active"],
-                "control_mode": data["control_mode"],
             }
 
-        if self.entity_description.key in {
+        if key in {
             "usage_probability_next_6h",
             "expected_usage_drop_next_6h",
             "demand_level",
@@ -389,18 +407,7 @@ class WaterSteerSensor(
             return {
                 "usage_event_count": data["usage_event_count"],
                 "observed_days": data["usage_observed_days"],
-                "relevant_observed_days": data["usage_relevant_observed_days"],
                 "profile_day_type": data["usage_profile_day_type"],
-                "small_event_count": data["usage_small_event_count"],
-                "medium_event_count": data["usage_medium_event_count"],
-                "large_event_count": data["usage_large_event_count"],
-                "direct_event_count": data["usage_direct_event_count"],
-                "recovery_event_count": data["usage_recovery_event_count"],
-                "next_expected_usage_probability": data[
-                    "next_expected_usage_probability"
-                ],
-                "next_expected_usage_drop": data["next_expected_usage_drop"],
-                "occupancy_state": data["occupancy_state"],
                 "hourly_forecast": data["usage_forecast"],
             }
 

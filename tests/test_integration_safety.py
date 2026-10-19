@@ -2,18 +2,23 @@
 
 from custom_components.watersteer.const import (
     CONF_ABSOLUTE_MINIMUM,
+    CONF_BLOCK_ENTITY,
     CONF_COMFORT_MINIMUM,
     CONF_DHW_TEMPERATURE_ENTITY,
     CONF_ELECTRICITY_PRICE_ENTITY,
+    CONF_EXTRA_HOT_WATER_ENTITY,
     CONF_NORMAL_TARGET,
     CONF_PRECHARGE_TARGET,
     CONF_SYSTEM_TYPE,
     DOMAIN,
     SYSTEM_TYPE_HEAT_PUMP,
 )
-from homeassistant.const import Platform, UnitOfTemperature
+from homeassistant.const import EVENT_HOMEASSISTANT_STOP, Platform, UnitOfTemperature
 from homeassistant.helpers import entity_registry as er
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    async_mock_service,
+)
 
 TEMP = "sensor.dhw_temperature"
 PRICE = "sensor.electricity_price"
@@ -127,3 +132,44 @@ async def test_migration_reenables_thermal_learning_confidence(hass) -> None:
         is er.RegistryEntryDisabler.USER
     )
     await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_active_mode_end_to_end(hass) -> None:
+    """Mode select drives the levers; stopping Home Assistant releases them."""
+    turn_on = async_mock_service(hass, "input_boolean", "turn_on")
+    switch_off = async_mock_service(hass, "switch", "turn_off")
+    hass.states.async_set("switch.blockera_varmvatten", "on")
+    hass.states.async_set("input_boolean.hp_extra_warm_water", "off")
+    entry = _entry(
+        **{
+            CONF_BLOCK_ENTITY: "switch.blockera_varmvatten",
+            CONF_EXTRA_HOT_WATER_ENTITY: "input_boolean.hp_extra_warm_water",
+        }
+    )
+    data = await _setup(hass, entry, "38.9")
+    assert data["status"] == "protecting"
+    assert not turn_on, "advisory mode must not switch anything"
+
+    select = hass.states.async_entity_ids("select")
+    assert len(select) == 1
+    status = hass.states.async_entity_ids("sensor")
+    assert "sensor.watersteer_status" in status
+    assert "sensor.watersteer_control_request" in status
+    assert "sensor.watersteer_thermal_learning_confidence" in status
+
+    await hass.services.async_call(
+        "select",
+        "select_option",
+        {"entity_id": select[0], "option": "active"},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+
+    assert len(switch_off) == 1
+    assert len(turn_on) == 1
+    assert hass.states.get(select[0]).state == "active"
+
+    hass.states.async_set("input_boolean.hp_extra_warm_water", "on")
+    hass.bus.async_fire(EVENT_HOMEASSISTANT_STOP)
+    await hass.async_block_till_done()
+    assert entry.runtime_data.actuator.extra_owned is False

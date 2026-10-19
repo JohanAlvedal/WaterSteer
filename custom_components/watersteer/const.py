@@ -47,3 +47,7 @@ MODE_LEARNING = "learning"
 MODE_SAFETY = "safety"
 
 DEFAULT_UPDATE_INTERVAL = timedelta(seconds=30)
+
+CONF_BLOCK_ENTITY = "block_entity"
+CONF_EXTRA_HOT_WATER_ENTITY = "extra_hot_water_entity"
+CONF_EXTERNAL_HEATING_ENTITY = "external_heating_entity"

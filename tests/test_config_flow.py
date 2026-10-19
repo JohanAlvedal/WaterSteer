@@ -2,10 +2,11 @@
 
 from custom_components.watersteer.const import (
     CONF_ABSOLUTE_MINIMUM,
+    CONF_BLOCK_ENTITY,
     CONF_COMFORT_MINIMUM,
     CONF_DHW_TEMPERATURE_ENTITY,
     CONF_ELECTRICITY_PRICE_ENTITY,
-    CONF_HEAT_PUMP_DHW_AVAILABLE_ENTITY,
+    CONF_EXTRA_HOT_WATER_ENTITY,
     CONF_MIN_THERMAL_CONFIDENCE,
     CONF_NORMAL_TARGET,
     CONF_OCCUPANCY_ENTITY,
@@ -91,14 +92,16 @@ async def test_heat_pump_config_flow_without_active_signal(hass) -> None:
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
         {
-            CONF_HEAT_PUMP_DHW_AVAILABLE_ENTITY: "binary_sensor.dhw_available",
+            CONF_BLOCK_ENTITY: "switch.blockera_varmvatten",
+            CONF_EXTRA_HOT_WATER_ENTITY: "input_boolean.hp_extra_warm_water",
         },
     )
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_BLOCK_ENTITY] == "switch.blockera_varmvatten"
     assert (
-        result["data"][CONF_HEAT_PUMP_DHW_AVAILABLE_ENTITY]
-        == "binary_sensor.dhw_available"
+        result["data"][CONF_EXTRA_HOT_WATER_ENTITY]
+        == "input_boolean.hp_extra_warm_water"
     )
 
 
@@ -165,9 +168,7 @@ async def test_options_flow_adds_thresholds_to_existing_entry(hass) -> None:
 
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],
-        {
-            CONF_HEAT_PUMP_DHW_AVAILABLE_ENTITY: "binary_sensor.hp_switch_valve_1",
-        },
+        {CONF_BLOCK_ENTITY: "switch.blockera_varmvatten"},
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["data"][CONF_ABSOLUTE_MINIMUM] == 40.0
