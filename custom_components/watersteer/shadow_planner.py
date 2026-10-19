@@ -80,6 +80,7 @@ class TankModel:
     comfort_minimum: float
     start_below: float
     stop_at: float
+    start_delay_hours: float = 0.0
 
 
 def simulate(
@@ -162,6 +163,8 @@ def _run(
     heated_hours = 0.0
     lowest = temp
     hold_broken = False
+    was_heating = heating
+    delay_left = 0.0
 
     while cursor < end:
         price = _price_at(price_slots, cursor)
@@ -187,7 +190,12 @@ def _run(
             elif temp >= tank.stop_at:
                 heating = False
 
-        if heating:
+        if heating and not was_heating:
+            delay_left = tank.start_delay_hours
+        was_heating = heating
+        if heating and delay_left > 0:
+            delay_left -= step_hours
+        elif heating:
             gain = tank.heating_rate_c_per_hour * step_hours
             temp += gain
             cost += gain * price

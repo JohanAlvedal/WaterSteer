@@ -56,15 +56,20 @@ def _price_attributes(now) -> dict:
     return {"raw_today": day(0), "raw_tomorrow": day(1)}
 
 
-@pytest.mark.parametrize("pump_start", [42.0, 47.0])
+@pytest.mark.parametrize(
+    ("pump_start", "start_delay_steps"),
+    [(42.0, 4), (47.0, 0)],
+    ids=["ground_source_slow_start", "starts_near_target"],
+)
 async def test_active_control_keeps_hot_water_and_does_not_cycle(
-    hass, freezer, pump_start
+    hass, freezer, pump_start, start_delay_steps
 ) -> None:
     """Four simulated days in Active control.
 
     ``pump_start`` is the heat pump's own DHW start temperature: 42 °C is a
     pump that only starts low (unblocking alone does nothing), 47 °C one that
-    starts close to the normal target.
+    starts close to the normal target. ``start_delay_steps`` (5 minutes each)
+    is how long the heat pump needs after a request before the tank warms.
     """
     await hass.config.async_set_time_zone("UTC")
     start = dt_util.parse_datetime("2026-01-05T00:00:00+00:00")
@@ -89,6 +94,7 @@ async def test_active_control_keeps_hot_water_and_does_not_cycle(
 
     tank = 50.0
     heating = False
+    requested_steps = 0
     hass.states.async_set(BLOCK, "off")
     hass.states.async_set(EXTRA, "off")
     hass.states.async_set(
@@ -133,7 +139,8 @@ async def test_active_control_keeps_hot_water_and_does_not_cycle(
             heating = True
         elif tank >= 50.0:
             heating = False
-        if heating:
+        requested_steps = requested_steps + 1 if heating else 0
+        if heating and requested_steps > start_delay_steps:
             tank += 8.0 / 12
             price = _price(now.hour)
             heated_degrees_by_price[price] = (

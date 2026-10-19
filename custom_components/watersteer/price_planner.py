@@ -97,6 +97,7 @@ def plan_price_window(
     current_price: float | None,
     price_slots: tuple[PriceSlot, ...],
     minimum_confidence: int = MIN_PLANNING_CONFIDENCE,
+    start_delay_minutes: float = 0.0,
 ) -> PricePlan:
     """Build a conservative advisory plan without issuing control commands."""
     if current_temperature is None:
@@ -170,7 +171,12 @@ def plan_price_window(
     peak_price = peak[2] if peak is not None else None
 
     temperature_deficit = max(0.0, normal_target - current_temperature)
-    charge_minutes = temperature_deficit / heating_rate_c_per_hour * 60
+    # Heat pumps need a while before the tank starts warming (compressor
+    # start, switching valve, finishing a space-heating cycle), so every
+    # charge window includes the learned start delay.
+    charge_minutes = (
+        temperature_deficit / heating_rate_c_per_hour * 60 + start_delay_minutes
+    )
 
     # If the tank is already at or above its normal target, cheap electricity
     # alone must not create a charge request. We can still plan the next
@@ -196,7 +202,9 @@ def plan_price_window(
         and current_temperature < precharge_target
     ):
         precharge_deficit = precharge_target - current_temperature
-        precharge_minutes = precharge_deficit / heating_rate_c_per_hour * 60
+        precharge_minutes = (
+            precharge_deficit / heating_rate_c_per_hour * 60 + start_delay_minutes
+        )
         pre_peak_slots = tuple(slot for slot in price_slots if slot.end <= peak_start)
         precharge_window = _cheapest_contiguous_window(
             slots=pre_peak_slots,

@@ -291,6 +291,7 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 comfort_minimum=thresholds.comfort_minimum,
                 start_below=(thresholds.comfort_minimum + thresholds.normal_target) / 2,
                 stop_at=thresholds.normal_target,
+                start_delay_hours=self.charge.start_delay_minutes / 60,
             ),
             price_slots=price_slots,
             demand=demand,
@@ -460,6 +461,7 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             current_price=electricity_price,
             price_slots=price_slots,
             minimum_confidence=minimum_thermal_confidence,
+            start_delay_minutes=self.charge.start_delay_minutes,
         )
 
         raw_decision = classify_dhw_temperature(dhw_temperature, thresholds)
@@ -609,6 +611,10 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "external_heating_active": external_heating_active,
             "heating_assist": charge.assist,
             "charge_target": charge.target,
+            "heat_pump_starts_hot_water_on_its_own": (
+                self.charge.pump_starts_on_its_own
+            ),
+            "heat_pump_start_delay_minutes": self.charge.start_delay_minutes,
             "optimization_ready": optimization_ready,
             "actuator_active": actuator_report.active,
             "actuator_commands": list(actuator_report.commands),

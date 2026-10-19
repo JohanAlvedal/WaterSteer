@@ -245,6 +245,8 @@ class DhwSafetySupervisor:
 
 
 HEATING_ASSIST_MINUTES = 15.0
+DEFAULT_START_DELAY_MINUTES = 20.0
+MAX_START_DELAY_SAMPLES = 10
 MAX_CHARGE_HOURS = 3.0
 CHARGE_INTENTS = frozenset({"heat", "precharge"})
 
@@ -268,6 +270,10 @@ class ChargeController:
     * If the tank has not started warming within ``HEATING_ASSIST_MINUTES``,
       extra hot water is requested: many heat pumps only start DHW far below
       the planned target, so unblocking alone does nothing.
+    * Whether the heat pump starts on its own is learned and persisted. Once
+      it is known that it does not (typical for ground-source heat pumps),
+      extra hot water is requested at the start of every charge instead of
+      after 15 wasted minutes.
 
     Only ever extends heating, so it is applied after the safety supervisor.
     """
@@ -279,6 +285,18 @@ class ChargeController:
         self.since: float | None = None
         self.start_temperature: float | None = None
         self.assist = False
+        self.pump_starts_on_its_own: bool | None = None
+        self.heating_requested_since: float | None = None
+        self.warmed = False
+        self.start_delays: list[float] = []
+
+    @property
+    def start_delay_minutes(self) -> float:
+        """Learned time from heating request until the tank starts warming."""
+        if not self.start_delays:
+            return DEFAULT_START_DELAY_MINUTES
+        ordered = sorted(self.start_delays)
+        return ordered[len(ordered) // 2]
 
     def evaluate(
         self,
@@ -299,6 +317,9 @@ class ChargeController:
             self.target = target_for[intent]
             self.since = now
             self.start_temperature = temperature
+            self.assist = self.pump_starts_on_its_own is False
+            self.heating_requested_since = now
+            self.warmed = False
         elif intent in CHARGE_INTENTS and intent != self.intent:
             self.intent = intent
             self.target = max(self.target or 0.0, target_for[intent])
@@ -319,17 +340,32 @@ class ChargeController:
             intent = self.intent
             reason = "finishing_planned_charge"
 
-        if (
-            not self.assist
-            and self.start_temperature is not None
-            and now - self.since >= HEATING_ASSIST_MINUTES * 60
-            and temperature < self.start_temperature + RECOVERY_RISE_C
-        ):
-            self.assist = True
+        warmed = (
+            self.start_temperature is not None
+            and temperature >= self.start_temperature + RECOVERY_RISE_C
+        )
+        if warmed and not self.warmed:
+            self.warmed = True
+            if self.heating_requested_since is not None:
+                self._record_delay((now - self.heating_requested_since) / 60)
+        if not self.assist and self.start_temperature is not None:
+            if warmed and self.pump_starts_on_its_own is None:
+                self.pump_starts_on_its_own = True
+            elif not warmed and now - self.since >= HEATING_ASSIST_MINUTES * 60:
+                self.assist = True
+                self.pump_starts_on_its_own = False
+                # Extra hot water is requested now; measure the delay from here.
+                self.heating_requested_since = now
 
         return ChargeResult(intent, reason, self.assist, self.target)
 
+    def _record_delay(self, minutes: float) -> None:
+        if 0 <= minutes <= 120:
+            self.start_delays = [*self.start_delays, minutes][-MAX_START_DELAY_SAMPLES:]
+
     def _reset(self) -> None:
+        self.heating_requested_since = None
+        self.warmed = False
         self.intent = None
         self.target = None
         self.since = None
@@ -344,6 +380,10 @@ class ChargeController:
             "since": self.since,
             "start_temperature": self.start_temperature,
             "assist": self.assist,
+            "pump_starts_on_its_own": self.pump_starts_on_its_own,
+            "heating_requested_since": self.heating_requested_since,
+            "warmed": self.warmed,
+            "start_delays": self.start_delays,
         }
 
     def restore(self, data: dict[str, Any] | None) -> None:
@@ -356,6 +396,22 @@ class ChargeController:
         self.since = _optional_float(data.get("since"))
         self.start_temperature = _optional_float(data.get("start_temperature"))
         self.assist = data.get("assist") is True
+        learned = data.get("pump_starts_on_its_own")
+        self.pump_starts_on_its_own = learned if isinstance(learned, bool) else None
+        self.heating_requested_since = _optional_float(
+            data.get("heating_requested_since")
+        )
+        self.warmed = data.get("warmed") is True
+        delays = data.get("start_delays")
+        self.start_delays = (
+            [
+                float(item)
+                for item in delays
+                if isinstance(item, int | float) and not isinstance(item, bool)
+            ][-MAX_START_DELAY_SAMPLES:]
+            if isinstance(delays, list)
+            else []
+        )
 
 
 def _optional_float(value: Any) -> float | None:

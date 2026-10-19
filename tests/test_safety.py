@@ -205,3 +205,118 @@ def test_charge_does_not_override_hold_limits() -> None:
     )
     assert result.intent == "force_heat"
     assert charge.intent is None
+
+
+def test_ground_source_pump_is_learned_and_assisted_immediately() -> None:
+    """After one charge without self-start, later charges assist at once."""
+    from custom_components.watersteer.safety import ChargeController
+
+    charge = ChargeController()
+    targets = {"heat": 52.5, "precharge": 55.0}
+    charge.evaluate(
+        now=0, intent="heat", reason="w", temperature=47.0, target_for=targets
+    )
+    charge.evaluate(
+        now=15 * MINUTE,
+        intent="heat",
+        reason="w",
+        temperature=46.9,
+        target_for=targets,
+    )
+    charge.evaluate(
+        now=60 * MINUTE,
+        intent="hold",
+        reason="x",
+        temperature=53.0,
+        target_for=targets,
+    )
+    assert charge.pump_starts_on_its_own is False
+
+    restarted = ChargeController()
+    restarted.restore(charge.as_dict())
+    first = restarted.evaluate(
+        now=600 * MINUTE,
+        intent="precharge",
+        reason="w",
+        temperature=48.0,
+        target_for=targets,
+    )
+    assert first.assist is True
+
+
+def test_pump_that_starts_by_itself_is_not_assisted() -> None:
+    """A heat pump that heats when unblocked never gets extra hot water."""
+    from custom_components.watersteer.safety import ChargeController
+
+    charge = ChargeController()
+    targets = {"heat": 52.5, "precharge": 55.0}
+    charge.evaluate(
+        now=0, intent="heat", reason="w", temperature=47.0, target_for=targets
+    )
+    result = charge.evaluate(
+        now=10 * MINUTE,
+        intent="heat",
+        reason="w",
+        temperature=48.0,
+        target_for=targets,
+    )
+    later = charge.evaluate(
+        now=30 * MINUTE,
+        intent="heat",
+        reason="w",
+        temperature=49.5,
+        target_for=targets,
+    )
+
+    assert charge.pump_starts_on_its_own is True
+    assert not result.assist
+    assert not later.assist
+
+
+def test_start_delay_is_learned_from_extra_hot_water_requests() -> None:
+    """The time until the tank warms is measured and used for planning."""
+    from custom_components.watersteer.safety import (
+        DEFAULT_START_DELAY_MINUTES,
+        ChargeController,
+    )
+
+    charge = ChargeController()
+    targets = {"heat": 52.5, "precharge": 55.0}
+    assert charge.start_delay_minutes == DEFAULT_START_DELAY_MINUTES
+
+    charge.pump_starts_on_its_own = False
+    for start in (0, 1000, 2000):
+        base = start * MINUTE
+        charge.evaluate(
+            now=base,
+            intent="heat",
+            reason="w",
+            temperature=47.0,
+            target_for=targets,
+        )
+        charge.evaluate(
+            now=base + 30 * MINUTE,
+            intent="heat",
+            reason="w",
+            temperature=47.1,
+            target_for=targets,
+        )
+        charge.evaluate(
+            now=base + 35 * MINUTE,
+            intent="heat",
+            reason="w",
+            temperature=47.6,
+            target_for=targets,
+        )
+        charge.evaluate(
+            now=base + 90 * MINUTE,
+            intent="hold",
+            reason="x",
+            temperature=53.0,
+            target_for=targets,
+        )
+
+    assert charge.start_delay_minutes == 35
+    restored = ChargeController()
+    restored.restore(charge.as_dict())
+    assert restored.start_delay_minutes == 35

@@ -45,7 +45,9 @@ Active control only happens after you select it yourself. WaterSteer then:
 
 - sends a command only when the entity is not already in the wanted state;
 - unblocks and requests extra hot water immediately when the tank needs it;
-- finishes a planned cheap charge to its target instead of stopping half-way, and uses extra hot water if the heat pump has not started on its own within 15 minutes (many heat pumps only start hot water far below the planned target);
+- finishes a planned cheap charge to its target instead of stopping half-way;
+- learns whether the heat pump starts hot water by itself when unblocked. Ground-source heat pumps usually do not, so after the first charge WaterSteer requests extra hot water at the start of every planned charge and every comfort recovery instead of waiting;
+- learns how long the heat pump needs before the tank starts warming and includes that delay when choosing charge windows;
 - blocks at most once every 10 minutes, so it never toggles the heat pump rapidly;
 - never switches off extra hot water that you turned on yourself;
 - releases the block and its own extra hot water when you change mode, reload the integration or stop Home Assistant.

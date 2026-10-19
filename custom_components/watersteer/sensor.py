@@ -388,6 +388,12 @@ class WaterSteerSensor(
                 "observed_hours": round(data["thermal_observation_hours"], 1),
                 "usage_observed_days": data["usage_observed_days"],
                 "loss_model": data["thermal_loss_model"],
+                "heat_pump_starts_hot_water_on_its_own": data[
+                    "heat_pump_starts_hot_water_on_its_own"
+                ],
+                "heat_pump_start_delay_minutes": round(
+                    data["heat_pump_start_delay_minutes"]
+                ),
                 "room_temperature_estimate": (
                     round(data["thermal_ambient_estimate"], 1)
                     if data["thermal_ambient_estimate"] is not None

@@ -63,6 +63,7 @@ contains the 0.1 skeleton). Audit performed against commit `dd019af`.
 | B14 | Low | Coordinator overrode `async_shutdown` without calling the base class, so refresh timers were not cancelled on unload. | Fixed |
 | B15 | **High** | `heat` and `precharge` only meant *unblock*. On a heat pump that starts hot water far below the plan's target (closed-loop test: 42 °C), planned cheap charges did nothing, and the tank was later recovered by `force_heat` in expensive hours (47 % of heat in peak hours, minimum 38.6 °C). | Fixed: charges finish to target and use extra hot water when the pump does not start; 11 % of heat in peak hours, minimum 44.8 °C |
 | B16 | Medium | No hysteresis around the normal target: hold and 0.5 °C charges alternated every hour (60 block changes in 4 days). | Fixed: hold hysteresis and minimum charge size (13 changes) |
+| B17 | Medium | Charge windows and the simulation assumed heating starts the moment it is requested. Heat pumps need a while (compressor start, switching valve, finishing a heating cycle). | Fixed: start delay learned from real charges (default 20 min) and added to windows and simulation |
 
 ## 2. The 38.9 °C incident
 
