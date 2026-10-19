@@ -26,6 +26,7 @@ from homeassistant.helpers.selector import (
 
 from .const import (
     CONF_ABSOLUTE_MINIMUM,
+    CONF_COMFORT_ESCALATION_MINUTES,
     CONF_COMFORT_MINIMUM,
     CONF_DHW_TEMPERATURE_ENTITY,
     CONF_ELECTRICITY_PRICE_ENTITY,
@@ -34,6 +35,7 @@ from .const import (
     CONF_HEAT_PUMP_DHW_ACTIVE_ENTITY,
     CONF_HEAT_PUMP_DHW_AVAILABLE_ENTITY,
     CONF_HEAT_PUMP_NORMAL_ACTION,
+    CONF_MAX_HOLD_HOURS,
     CONF_MIN_THERMAL_CONFIDENCE,
     CONF_NORMAL_TARGET,
     CONF_OCCUPANCY_ENTITY,
@@ -42,7 +44,9 @@ from .const import (
     CONF_STANDALONE_POWER_SENSOR,
     CONF_SYSTEM_TYPE,
     DEFAULT_ABSOLUTE_MINIMUM,
+    DEFAULT_COMFORT_ESCALATION_MINUTES,
     DEFAULT_COMFORT_MINIMUM,
+    DEFAULT_MAX_HOLD_HOURS,
     DEFAULT_MIN_THERMAL_CONFIDENCE,
     DEFAULT_NORMAL_TARGET,
     DEFAULT_PRECHARGE_TARGET,
@@ -133,6 +137,30 @@ def _threshold_schema() -> vol.Schema:
                 CONF_MIN_THERMAL_CONFIDENCE,
                 default=DEFAULT_MIN_THERMAL_CONFIDENCE,
             ): confidence_selector,
+            vol.Required(
+                CONF_MAX_HOLD_HOURS,
+                default=DEFAULT_MAX_HOLD_HOURS,
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=1,
+                    max=24,
+                    step=0.5,
+                    mode=NumberSelectorMode.BOX,
+                    unit_of_measurement="h",
+                )
+            ),
+            vol.Required(
+                CONF_COMFORT_ESCALATION_MINUTES,
+                default=DEFAULT_COMFORT_ESCALATION_MINUTES,
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=15,
+                    max=240,
+                    step=5,
+                    mode=NumberSelectorMode.BOX,
+                    unit_of_measurement="min",
+                )
+            ),
         }
     )
 
@@ -184,7 +212,7 @@ def _heat_pump_schema() -> vol.Schema:
 class WaterSteerConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for WaterSteer."""
 
-    VERSION = 2
+    VERSION = 3
 
     def __init__(self) -> None:
         """Initialize the config flow."""
@@ -334,6 +362,15 @@ class WaterSteerOptionsFlow(OptionsFlowWithReload):
                 current.get(
                     CONF_MIN_THERMAL_CONFIDENCE,
                     DEFAULT_MIN_THERMAL_CONFIDENCE,
+                )
+            ),
+            CONF_MAX_HOLD_HOURS: float(
+                current.get(CONF_MAX_HOLD_HOURS, DEFAULT_MAX_HOLD_HOURS)
+            ),
+            CONF_COMFORT_ESCALATION_MINUTES: float(
+                current.get(
+                    CONF_COMFORT_ESCALATION_MINUTES,
+                    DEFAULT_COMFORT_ESCALATION_MINUTES,
                 )
             ),
         }

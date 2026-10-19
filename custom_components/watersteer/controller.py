@@ -25,6 +25,21 @@ class DhwThresholds:
         )
 
 
+def effective_thresholds(
+    configured: DhwThresholds,
+    fallback: DhwThresholds,
+) -> tuple[DhwThresholds, bool]:
+    """Return thresholds safe to act on, and whether the configured set was used.
+
+    An invalid configuration must never disable safety protection. WaterSteer
+    then keeps protecting comfort with the built-in defaults while price
+    optimization is suspended by the caller.
+    """
+    if configured.valid:
+        return configured, True
+    return fallback, False
+
+
 @dataclass(frozen=True, slots=True)
 class DhwDecision:
     """Describe one deterministic shadow-control decision."""

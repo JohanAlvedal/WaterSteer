@@ -34,14 +34,18 @@
           "comfort_minimum": "Comfort minimum",
           "normal_target": "Normal target",
           "precharge_target": "Precharge target",
-          "min_thermal_confidence": "Minimum thermal confidence for braking"
+          "min_thermal_confidence": "Minimum thermal confidence for braking",
+          "max_hold_hours": "Maximum continuous hold",
+          "comfort_escalation_minutes": "Comfort recovery escalation"
         },
         "data_description": {
           "absolute_minimum": "At or below this temperature WaterSteer requests immediate forced heating.",
           "comfort_minimum": "Below this temperature WaterSteer requests comfort recovery even if electricity is expensive.",
           "normal_target": "At or above this temperature the shadow classifier considers stored hot water sufficient and would hold normal DHW heating.",
           "precharge_target": "Upper target reserved for future price-based precharging. Cheap electricity alone will never be enough to trigger heating.",
-          "min_thermal_confidence": "WaterSteer will not hold or block normal DHW production until thermal learning confidence reaches this percentage. Default: 50%."
+          "min_thermal_confidence": "WaterSteer will not hold or block normal DHW production until thermal learning confidence reaches this percentage. Default: 50%.",
+          "max_hold_hours": "Longest time WaterSteer may request that DHW production is held. After this, it requests normal operation for at least one hour.",
+          "comfort_escalation_minutes": "If the tank stays below the comfort minimum this long without warming up, WaterSteer escalates to force_heat."
         }
       },
       "standalone_control": {
@@ -105,14 +109,18 @@
           "comfort_minimum": "Comfort minimum",
           "normal_target": "Normal target",
           "precharge_target": "Precharge target",
-          "min_thermal_confidence": "Minimum thermal confidence for braking"
+          "min_thermal_confidence": "Minimum thermal confidence for braking",
+          "max_hold_hours": "Maximum continuous hold",
+          "comfort_escalation_minutes": "Comfort recovery escalation"
         },
         "data_description": {
           "absolute_minimum": "At or below this temperature WaterSteer requests immediate forced heating.",
           "comfort_minimum": "Below this temperature WaterSteer requests comfort recovery.",
           "normal_target": "At or above this temperature WaterSteer would hold normal DHW heating.",
           "precharge_target": "Upper target reserved for future price-based precharging.",
-          "min_thermal_confidence": "WaterSteer will not hold or block normal DHW production until thermal learning confidence reaches this percentage. Default: 50%."
+          "min_thermal_confidence": "WaterSteer will not hold or block normal DHW production until thermal learning confidence reaches this percentage. Default: 50%.",
+          "max_hold_hours": "Longest time WaterSteer may request that DHW production is held. After this, it requests normal operation for at least one hour.",
+          "comfort_escalation_minutes": "If the tank stays below the comfort minimum this long without warming up, WaterSteer escalates to force_heat."
         }
       },
       "standalone_control": {

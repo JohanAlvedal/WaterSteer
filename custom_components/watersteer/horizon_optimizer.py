@@ -44,6 +44,7 @@ def optimize_horizon(
     safety_allowed: bool,
     safety_request: bool,
     safety_force_request: bool,
+    optimization_allowed: bool = True,
 ) -> HorizonDecision:
     """Choose the current advisory intent using safety, demand, and prices."""
     if current_temperature is None:
@@ -66,6 +67,14 @@ def optimize_horizon(
         return _decision(
             "heat",
             "comfort_recovery_requires_heat",
+            safe_margin_confidence,
+            demand,
+        )
+
+    if not optimization_allowed:
+        return _decision(
+            "normal",
+            "fail_open_invalid_threshold_configuration",
             safe_margin_confidence,
             demand,
         )

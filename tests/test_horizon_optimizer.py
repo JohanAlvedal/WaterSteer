@@ -86,6 +86,31 @@ def test_missing_temperature_fails_open() -> None:
     assert result.reason == "fail_open_missing_temperature"
 
 
+def test_invalid_thresholds_suspend_optimization() -> None:
+    """Invalid configuration fails open instead of holding."""
+    now = datetime(2026, 1, 5, 6, tzinfo=UTC)
+    decision = optimize_horizon(
+        now=now,
+        current_temperature=52.0,
+        comfort_minimum=45.0,
+        normal_target=50.0,
+        precharge_target=55.0,
+        safe_margin_minutes=600.0,
+        safe_margin_confidence=90,
+        demand=_demand(now, probability=0.1, drop=0.1),
+        occupancy=True,
+        price_plan=_plan(now, status="price_hold", active=False),
+        price_input_valid=True,
+        safety_allowed=False,
+        safety_request=False,
+        safety_force_request=False,
+        optimization_allowed=False,
+    )
+
+    assert decision.intent == "normal"
+    assert decision.reason == "fail_open_invalid_threshold_configuration"
+
+
 def test_missing_price_fails_open() -> None:
     """Missing live price input must never result in blocking."""
     now = datetime(2026, 10, 9, 12, tzinfo=UTC)

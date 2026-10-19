@@ -101,7 +101,6 @@ SENSORS: tuple[WaterSteerSensorEntityDescription, ...] = (
     WaterSteerSensorEntityDescription(
         key="learning_confidence",
         translation_key="learning_confidence",
-        entity_registry_enabled_default=False,
         native_unit_of_measurement=PERCENTAGE,
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda data: data["learning_confidence"],
@@ -269,6 +268,9 @@ class WaterSteerSensor(
     """Representation of a WaterSteer sensor."""
 
     _attr_has_entity_name = True
+    # Large, frequently changing forecast lists stay visible as attributes but
+    # are kept out of the recorder database.
+    _unrecorded_attributes = frozenset({"forecast_24h", "hourly_forecast"})
 
     def __init__(
         self,
@@ -301,6 +303,12 @@ class WaterSteerSensor(
             return {
                 "reason": data["control_request_reason"],
                 "confidence": data["control_request_confidence"],
+                "safety_override": data["control_request_safety_override"],
+                "optimizer_intent": data["control_request_optimizer_intent"],
+                "optimizer_reason": data["control_request_optimizer_reason"],
+                "safety_warnings": data["safety_warnings"],
+                "force_recovery_active": data["force_recovery_active"],
+                "hold_minutes": data["hold_minutes"],
                 "demand_prediction_backend": data["demand_prediction_backend"],
                 "demand_prediction_confidence": data["demand_prediction_confidence"],
                 "demand_peak_probability": data["demand_prediction_peak_probability"],

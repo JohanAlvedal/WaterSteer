@@ -24,11 +24,13 @@ from .autonomy_model import estimate_autonomy
 from .capability_model import estimate_safe_margin
 from .const import (
     CONF_ABSOLUTE_MINIMUM,
+    CONF_COMFORT_ESCALATION_MINUTES,
     CONF_COMFORT_MINIMUM,
     CONF_DHW_TEMPERATURE_ENTITY,
     CONF_ELECTRICITY_PRICE_ENTITY,
     CONF_HEAT_PUMP_DHW_ACTIVE_ENTITY,
     CONF_HEAT_PUMP_DHW_AVAILABLE_ENTITY,
+    CONF_MAX_HOLD_HOURS,
     CONF_MIN_THERMAL_CONFIDENCE,
     CONF_NORMAL_TARGET,
     CONF_OCCUPANCY_ENTITY,
@@ -37,7 +39,9 @@ from .const import (
     CONF_STANDALONE_POWER_SENSOR,
     CONF_SYSTEM_TYPE,
     DEFAULT_ABSOLUTE_MINIMUM,
+    DEFAULT_COMFORT_ESCALATION_MINUTES,
     DEFAULT_COMFORT_MINIMUM,
+    DEFAULT_MAX_HOLD_HOURS,
     DEFAULT_MIN_THERMAL_CONFIDENCE,
     DEFAULT_NORMAL_TARGET,
     DEFAULT_PRECHARGE_TARGET,
@@ -50,10 +54,12 @@ from .controller import (
     DhwThresholds,
     apply_thermal_confidence_guard,
     classify_dhw_temperature,
+    effective_thresholds,
 )
 from .demand_predictor import DhwDemandPredictor
 from .horizon_optimizer import optimize_horizon
 from .price_planner import extract_price_slots, plan_price_window
+from .safety import DhwSafetySupervisor
 from .thermal_model import DhwThermalModel
 from .usage_model import DhwUsageModel
 
@@ -133,7 +139,11 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.entry = entry
         self.thermal_model = DhwThermalModel()
         self.usage_model = DhwUsageModel()
-        self.demand_predictor = DhwDemandPredictor()
+        # The optional Random Forest backend is disabled: it has not shown a
+        # measurable benefit over the statistical profile and training it would
+        # block the event loop. See docs/AUDIT.md.
+        self.demand_predictor = DhwDemandPredictor(enable_ml=False)
+        self.safety = DhwSafetySupervisor()
         self._thermal_store: Store[dict[str, Any]] = Store(
             hass,
             _STORAGE_VERSION,
@@ -144,8 +154,13 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _STORAGE_VERSION,
             f"{DOMAIN}.{entry.entry_id}.usage_model",
         )
+        self._safety_store: Store[dict[str, Any]] = Store(
+            hass,
+            _STORAGE_VERSION,
+            f"{DOMAIN}.{entry.entry_id}.safety_state",
+        )
         self._last_store_save = None
-        self._force_recovery_active = False
+        self._threshold_warning_logged = False
 
     async def async_initialize(self) -> None:
         """Restore persisted learning history."""
@@ -153,11 +168,13 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         usage_data = await self._usage_store.async_load()
         self.thermal_model.restore(thermal_data)
         self.usage_model.restore(usage_data)
+        self.safety.restore(await self._safety_store.async_load())
 
     async def async_shutdown(self) -> None:
         """Persist learning history before the integration unloads."""
         await self._thermal_store.async_save(self.thermal_model.as_dict())
         await self._usage_store.async_save(self.usage_model.as_dict())
+        await self._safety_store.async_save(self.safety.as_dict())
 
     def _config(self) -> dict[str, Any]:
         """Return effective configuration with options overriding setup data."""
@@ -183,7 +200,7 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             price_state.state if price_state is not None else None
         )
 
-        thresholds = DhwThresholds(
+        configured_thresholds = DhwThresholds(
             absolute_minimum=float(
                 config.get(CONF_ABSOLUTE_MINIMUM, DEFAULT_ABSOLUTE_MINIMUM)
             ),
@@ -194,6 +211,30 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             precharge_target=float(
                 config.get(CONF_PRECHARGE_TARGET, DEFAULT_PRECHARGE_TARGET)
             ),
+        )
+        thresholds, thresholds_valid = effective_thresholds(
+            configured_thresholds,
+            DhwThresholds(
+                absolute_minimum=DEFAULT_ABSOLUTE_MINIMUM,
+                comfort_minimum=DEFAULT_COMFORT_MINIMUM,
+                normal_target=DEFAULT_NORMAL_TARGET,
+                precharge_target=DEFAULT_PRECHARGE_TARGET,
+            ),
+        )
+        if not thresholds_valid and not self._threshold_warning_logged:
+            self._threshold_warning_logged = True
+            _LOGGER.warning(
+                "WaterSteer thresholds are not strictly ordered; using safe "
+                "defaults and suspending price optimization"
+            )
+        self.safety.max_hold_hours = float(
+            config.get(CONF_MAX_HOLD_HOURS, DEFAULT_MAX_HOLD_HOURS)
+        )
+        self.safety.comfort_escalation_minutes = float(
+            config.get(
+                CONF_COMFORT_ESCALATION_MINUTES,
+                DEFAULT_COMFORT_ESCALATION_MINUTES,
+            )
         )
         minimum_thermal_confidence = int(
             float(
@@ -304,12 +345,6 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             minimum_confidence=minimum_thermal_confidence,
         )
 
-        if dhw_temperature is not None:
-            if decision.force_request:
-                self._force_recovery_active = True
-            elif dhw_temperature >= thresholds.comfort_minimum:
-                self._force_recovery_active = False
-
         horizon_decision = optimize_horizon(
             now=now_local,
             current_temperature=dhw_temperature,
@@ -324,11 +359,22 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             price_input_valid=electricity_price is not None,
             safety_allowed=decision.allowed,
             safety_request=decision.request,
-            safety_force_request=(
-                decision.force_request or self._force_recovery_active
-            ),
+            safety_force_request=(decision.force_request or self.safety.force_latched),
+            optimization_allowed=thresholds_valid,
         )
-        control_request = horizon_decision.intent
+        safety_before = self.safety.as_dict()
+        safety_result = self.safety.evaluate(
+            now=now.timestamp(),
+            temperature=dhw_temperature,
+            absolute_minimum=thresholds.absolute_minimum,
+            comfort_minimum=thresholds.comfort_minimum,
+            proposed_intent=horizon_decision.intent,
+            proposed_reason=horizon_decision.reason,
+            warnings=(() if thresholds_valid else ("invalid_threshold_configuration",)),
+        )
+        control_request = safety_result.intent
+        if self.safety.as_dict() != safety_before:
+            await self._safety_store.async_save(self.safety.as_dict())
 
         if (thermal_observation_added or usage_observation_added) and (
             self._last_store_save is None
@@ -339,7 +385,7 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._last_store_save = now
 
         data_valid = dhw_temperature is not None
-        mode = MODE_LEARNING if data_valid and thresholds.valid else MODE_SAFETY
+        mode = MODE_LEARNING if data_valid and thresholds_valid else MODE_SAFETY
 
         return {
             "mode": mode,
@@ -349,7 +395,15 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "decision": decision.classification,
             "decision_reason": decision.reason,
             "control_request": control_request,
-            "control_request_reason": horizon_decision.reason,
+            "control_request_reason": safety_result.reason,
+            "control_request_optimizer_intent": horizon_decision.intent,
+            "control_request_optimizer_reason": horizon_decision.reason,
+            "control_request_safety_override": safety_result.overridden,
+            "safety_warnings": list(safety_result.warnings),
+            "hold_minutes": safety_result.hold_minutes,
+            "max_hold_hours": self.safety.max_hold_hours,
+            "comfort_escalation_minutes": self.safety.comfort_escalation_minutes,
+            "threshold_configuration_valid": thresholds_valid,
             "control_request_confidence": horizon_decision.confidence,
             "control_request_demand_risk": horizon_decision.demand_risk * 100,
             "control_request_expected_demand_drop": (
@@ -375,10 +429,10 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 for bucket in demand_forecast.buckets
             ],
             "raw_temperature_decision": raw_decision.classification,
-            "dhw_allowed": decision.allowed,
+            "dhw_allowed": control_request != "hold",
             "dhw_request": decision.request,
-            "force_request": decision.force_request or self._force_recovery_active,
-            "force_recovery_active": self._force_recovery_active,
+            "force_request": control_request == "force_heat",
+            "force_recovery_active": safety_result.force_latched,
             "absolute_minimum": thresholds.absolute_minimum,
             "comfort_minimum": thresholds.comfort_minimum,
             "normal_target": thresholds.normal_target,

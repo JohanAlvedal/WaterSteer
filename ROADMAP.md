@@ -2,6 +2,14 @@
 
 This roadmap describes both implemented functionality and planned development.
 
+Status legend: **production-ready** · **implemented / validating** · **incomplete** · **experimental** · **planned**. The full audit, known bugs and entity plan are in [docs/AUDIT.md](docs/AUDIT.md).
+
+## Known bugs
+
+- Peak detection misbehaves with zero or negative median prices.
+- A temperature sensor without `unit_of_measurement` is treated as missing without a visible warning.
+- Binary sensors carry ~20 frequently changing attributes (recorder load).
+
 ## 0.1 — Foundation and safe advisory control
 
 Status: **implemented / being validated**
@@ -204,7 +212,7 @@ Status: **implemented in advisory form / validation next**
 - 24-hour statistical DHW demand forecast
 - weekday/weekend profile remains the deterministic fallback
 - explicit occupancy modifier
-- optional local Random Forest backend when scikit-learn is available and training history is sufficient
+- optional local Random Forest backend (experimental, disabled since 0.5.2)
 - automatic statistical fallback when ML is unavailable or immature
 - rolling horizon policy combines safe margin, demand, occupancy, price plan and peak timing
 - missing DHW temperature fails open to `normal`
@@ -225,6 +233,26 @@ Validation focus:
 - validate that precharge starts only inside the selected window
 - validate boost remains rare and only appears in genuine high-risk peak scenarios
 - compare statistical and ML backends once sufficient history is available
+
+## 0.5.2 — Safety supervisor
+
+Status: **implemented / validating**
+
+- persistent critical-recovery latch (survives restarts)
+- comfort-recovery escalation to `force_heat` when allow-only recovery does not warm the tank
+- maximum continuous hold with lockout
+- `hold` never published below the comfort minimum
+- invalid thresholds keep protection with default thresholds and suspend optimization
+- Random Forest backend disabled (experimental)
+- thermal learning confidence sensor re-enabled for existing installations
+
+## 0.5.3 — Simplified entity surface
+
+Status: **planned**
+
+- new Status and Safety entities
+- Hot water forecast and Learning built on existing entities
+- deprecation path for redundant entities, see docs/AUDIT.md
 
 ## 0.6 — Active control
 

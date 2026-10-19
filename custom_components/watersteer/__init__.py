@@ -15,7 +15,6 @@ _ADVANCED_SENSOR_KEYS = (
     "heating_rate",
     "projected_temperature_1h",
     "time_to_comfort",
-    "learning_confidence",
     "passive_autonomy",
     "predicted_autonomy",
     "predicted_temperature_6h",
@@ -60,6 +59,27 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     )
 
         hass.config_entries.async_update_entry(entry, version=2)
+
+    if entry.version < 3:
+        # Version 2 disabled the thermal learning confidence sensor, but
+        # sensor.watersteer_thermal_learning_confidence is used by external
+        # automations. Re-enable it only when WaterSteer itself disabled it, so
+        # an explicit user choice is preserved.
+        registry = er.async_get(hass)
+        entity_id = registry.async_get_entity_id(
+            Platform.SENSOR,
+            "watersteer",
+            f"{entry.entry_id}_learning_confidence",
+        )
+        if entity_id is not None:
+            registry_entry = registry.async_get(entity_id)
+            if (
+                registry_entry is not None
+                and registry_entry.disabled_by is er.RegistryEntryDisabler.INTEGRATION
+            ):
+                registry.async_update_entity(entity_id, disabled_by=None)
+
+        hass.config_entries.async_update_entry(entry, version=3)
 
     return True
 

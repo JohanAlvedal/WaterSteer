@@ -148,6 +148,23 @@ This rule is designed to prevent WaterSteer from withholding normal DHW producti
 
 If required sensor data is invalid, WaterSteer fails safe and allows normal DHW operation.
 
+### Safety supervisor
+
+Every published control request passes a persistent safety supervisor last. It can only make the request safer:
+
+| Rule | Result |
+| --- | --- |
+| DHW temperature unavailable | `normal` — control returns to the heat pump |
+| Temperature at or below absolute minimum | `force_heat`, latched until the comfort minimum is reached |
+| Below comfort minimum for *Comfort recovery escalation* minutes (default 45) without warming at least 0.5 °C | `force_heat` (escalation) |
+| Optimizer proposes `hold` below comfort minimum | `normal` |
+| `hold` lasted *Maximum continuous hold* (default 6 h) | `normal` for at least 60 minutes |
+| Thresholds not strictly ordered | built-in default thresholds protect comfort, price optimization is suspended, `mode = safety` |
+
+The latch, the comfort-deficit timer and the hold timer are stored and survive Home Assistant restarts.
+
+WaterSteer does not execute physical actions itself. Automations that act on `sensor.watersteer_control_request` should trigger on every state change and on Home Assistant start, treat `unavailable` as `normal`, and never place a condition on a diagnostic WaterSteer entity in the `force_heat` path. See [docs/AUDIT.md](docs/AUDIT.md).
+
 ## Current advisory decisions
 
 With the default thresholds:
@@ -164,7 +181,7 @@ the raw temperature classifier behaves as follows:
 | DHW temperature | Raw decision | Request | Force |
 | --- | --- | --- | --- |
 | <= 40 °C | `force_heat` | ON | ON |
-| 40–45 °C | `comfort_recovery` | ON | OFF |
+| 40–45 °C | `comfort_recovery` | ON | OFF (escalates to ON after the escalation time without progress) |
 | 45–50 °C | `normal_operation` | OFF | OFF |
 | >= 50 °C | `temperature_hold` | OFF | OFF |
 
@@ -184,6 +201,7 @@ sensor.watersteer_dhw_temperature
 sensor.watersteer_safe_dhw_margin
 sensor.watersteer_dhw_price_plan_status
 sensor.watersteer_next_planned_dhw_charge
+sensor.watersteer_thermal_learning_confidence
 
 binary_sensor.watersteer_dhw_allowed
 binary_sensor.watersteer_force_request
@@ -211,7 +229,9 @@ The intents deliberately distinguish normal DHW production from extraordinary bo
 
 Advanced learning, usage, autonomy, planner-detail and diagnostic entities are still available but are disabled by default in the Home Assistant entity registry. They can be enabled individually when troubleshooting or developing WaterSteer.
 
-Existing Home Assistant installations keep their current entity-registry choices; changing the integration default does not forcibly disable entities that a user already has enabled.
+`binary_sensor.watersteer_dhw_allowed` is off exactly when `control_request` is `hold`, and `binary_sensor.watersteer_force_request` is on exactly when it is `force_heat`.
+
+Config-entry version 2 disabled `sensor.watersteer_thermal_learning_confidence` on existing installations. Version 3 re-enables it when WaterSteer (not the user) disabled it, because external automations depend on it. A planned simplification to about five primary entities is described in [docs/AUDIT.md](docs/AUDIT.md).
 
 Entity IDs may receive Home Assistant suffixes if conflicting entities already exist.
 
@@ -323,7 +343,7 @@ The same temperature on a weekend with high learned usage probability may result
 
 WaterSteer now separates demand prediction from control.
 
-The default predictor extends the learned weekday/weekend profile to a 24-hour hourly forecast. If scikit-learn is available locally and enough historical exposure and usage events exist, the predictor can automatically use a local Random Forest backend. If ML is unavailable or immature, WaterSteer falls back to the deterministic statistical predictor.
+The predictor extends the learned weekday/weekend profile to a 24-hour hourly forecast. An experimental local Random Forest backend exists in the code but is disabled: training ran on the Home Assistant event loop and no measurable benefit over the statistical profile has been shown yet.
 
 The rolling horizon optimizer combines:
 
