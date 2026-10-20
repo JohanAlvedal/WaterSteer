@@ -43,7 +43,7 @@
         "data_description": {
           "absolute_minimum": "At or below this temperature WaterSteer requests immediate forced heating.",
           "comfort_minimum": "Below this temperature WaterSteer requests comfort recovery even if electricity is expensive.",
-          "normal_target": "At or above this temperature stored hot water is considered sufficient, so heating may be held for cheaper electricity.",
+          "normal_target": "At or above this temperature stored hot water is sufficient. Below it, heating may still wait for a cheaper planned window while the tank stays 1.5 °C above the comfort minimum.",
           "precharge_target": "Target when heating ahead of an expensive period. Cheap electricity alone never triggers heating.",
           "min_thermal_confidence": "WaterSteer will not hold or block normal DHW production until thermal learning confidence reaches this percentage. Default: 50%.",
           "max_hold_hours": "Longest time WaterSteer may request that DHW production is held. After this, it requests normal operation for at least one hour.",
@@ -116,7 +116,7 @@
         "data_description": {
           "absolute_minimum": "At or below this temperature WaterSteer requests immediate forced heating.",
           "comfort_minimum": "Below this temperature WaterSteer requests comfort recovery.",
-          "normal_target": "At or above this temperature stored hot water is considered sufficient, so heating may be held for cheaper electricity.",
+          "normal_target": "At or above this temperature stored hot water is sufficient. Below it, heating may still wait for a cheaper planned window while the tank stays 1.5 °C above the comfort minimum.",
           "precharge_target": "Target when heating ahead of an expensive period. Cheap electricity alone never triggers heating.",
           "min_thermal_confidence": "WaterSteer will not hold or block normal DHW production until thermal learning confidence reaches this percentage. Default: 50%.",
           "max_hold_hours": "Longest time WaterSteer may request that DHW production is held. After this, it requests normal operation for at least one hour.",

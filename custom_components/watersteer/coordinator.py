@@ -81,6 +81,7 @@ _LOGGER = logging.getLogger(__name__)
 
 _STORAGE_VERSION = 1
 _STORAGE_SAVE_INTERVAL = timedelta(minutes=15)
+SHADOW_VETO_RELEASE_C = 1.0
 
 
 def _as_float(value: str | None) -> float | None:
@@ -201,6 +202,7 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._last_store_save = None
         self._threshold_warning_logged = False
         self._last_intent: str | None = None
+        self._shadow_veto = False
 
     async def async_initialize(self) -> None:
         """Restore persisted learning history."""
@@ -521,11 +523,20 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             intent=horizon_decision.intent,
             price_plan=price_plan,
         )
-        if (
+        # Veto with hysteresis: once a hold was vetoed, it is only allowed
+        # again when the simulation clears comfort by a margin. Otherwise the
+        # decision flickers when the predicted minimum sits on the limit.
+        veto_limit = thresholds.comfort_minimum + (
+            SHADOW_VETO_RELEASE_C if self._shadow_veto else 0.0
+        )
+        self._shadow_veto = (
             horizon_decision.intent == "hold"
             and shadow is not None
-            and shadow.optimized.min_temperature < thresholds.comfort_minimum
-        ):
+            and shadow.optimized.min_temperature < veto_limit
+        ) or (
+            self._shadow_veto and horizon_decision.intent == "hold" and shadow is None
+        )
+        if self._shadow_veto:
             horizon_decision = replace(
                 horizon_decision,
                 intent="normal",

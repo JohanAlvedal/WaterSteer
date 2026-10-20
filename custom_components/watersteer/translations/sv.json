@@ -43,7 +43,7 @@
         "data_description": {
           "absolute_minimum": "Vid eller under denna temperatur begärs extra varmvatten direkt.",
           "comfort_minimum": "Under denna temperatur tillåts uppvärmning oavsett elpris.",
-          "normal_target": "Vid eller över denna temperatur räcker varmvattnet, och uppvärmning kan vänta på billigare el.",
+          "normal_target": "Vid eller över denna temperatur räcker varmvattnet. Under den kan uppvärmning ändå vänta på ett billigare planerat fönster så länge tanken ligger minst 1,5 °C över komfortminimum.",
           "precharge_target": "Mål vid uppvärmning inför en dyr period. Billig el ensam startar aldrig uppvärmning.",
           "min_thermal_confidence": "WaterSteer blockerar aldrig varmvatten innan inlärningen nått denna nivå. Standard 50 %.",
           "max_hold_hours": "Längsta tid WaterSteer får blockera i sträck. Därefter normal drift i minst en timme.",
@@ -116,7 +116,7 @@
         "data_description": {
           "absolute_minimum": "Vid eller under denna temperatur begärs extra varmvatten direkt.",
           "comfort_minimum": "Under denna temperatur tillåts uppvärmning oavsett elpris.",
-          "normal_target": "Vid eller över denna temperatur räcker varmvattnet, och uppvärmning kan vänta på billigare el.",
+          "normal_target": "Vid eller över denna temperatur räcker varmvattnet. Under den kan uppvärmning ändå vänta på ett billigare planerat fönster så länge tanken ligger minst 1,5 °C över komfortminimum.",
           "precharge_target": "Mål vid uppvärmning inför en dyr period. Billig el ensam startar aldrig uppvärmning.",
           "min_thermal_confidence": "WaterSteer blockerar aldrig varmvatten innan inlärningen nått denna nivå. Standard 50 %.",
           "max_hold_hours": "Längsta tid WaterSteer får blockera i sträck. Därefter normal drift i minst en timme.",

@@ -71,9 +71,9 @@ Leave Mode on Advisory for the first days and watch Status and Hot water remaini
 | --- | --- | --- |
 | Absolute minimum | 40 °C | At or below: extra hot water now, until the comfort minimum is reached again. |
 | Comfort minimum | 45 °C | Below: heating is never held, regardless of price. |
-| Normal target | 50 °C | At or above: hot water is sufficient, heating may wait for cheaper electricity. |
+| Normal target | 50 °C | At or above: hot water is sufficient. Below it, heating may still wait for a cheaper planned window as long as the tank stays at least 1.5 °C above the comfort minimum. |
 | Precharge target | 55 °C | Target when heating ahead of an expensive period. |
-| Maximum continuous hold | 6 h | After this, normal operation for at least one hour. |
+| Maximum continuous hold | 12 h | After this, normal operation for at least one hour. |
 | Comfort recovery escalation | 45 min | If the tank stays below comfort this long without warming, extra hot water is requested. |
 
 ## Safety rules

@@ -348,3 +348,63 @@ def test_production_signal_marks_start_before_temperature_rises() -> None:
     assert not result.assist
     assert charge.pump_starts_on_its_own is True
     assert charge.start_delays == [10.0]
+
+
+def test_charge_that_stalls_below_target_gets_extra_hot_water() -> None:
+    """The heat pump's own cycle stops at ~51.7 °C; precharge wants 55 °C."""
+    from custom_components.watersteer.safety import ChargeController
+
+    charge = ChargeController()
+    targets = {"heat": 52.5, "precharge": 55.0}
+    temps = [48.0, 50.0, 51.7, 51.7, 51.6, 51.6]
+    results = []
+    for index, temp in enumerate(temps):
+        results.append(
+            charge.evaluate(
+                now=index * 5 * MINUTE,
+                intent="precharge",
+                reason="w",
+                temperature=temp,
+                target_for=targets,
+                producing=index < 3,
+            )
+        )
+    stalled = charge.evaluate(
+        now=30 * MINUTE,
+        intent="precharge",
+        reason="w",
+        temperature=51.5,
+        target_for=targets,
+        producing=False,
+    )
+
+    assert not results[2].assist
+    assert stalled.assist
+
+
+def test_charge_gives_up_when_extra_hot_water_does_not_help() -> None:
+    """If even extra hot water does not raise the tank, the charge ends."""
+    from custom_components.watersteer.safety import ChargeController
+
+    charge = ChargeController()
+    targets = {"heat": 52.5, "precharge": 55.0}
+    charge.evaluate(
+        now=0,
+        intent="precharge",
+        reason="w",
+        temperature=48.0,
+        target_for=targets,
+        producing=True,
+    )
+    for minute in range(5, 80, 5):
+        result = charge.evaluate(
+            now=minute * MINUTE,
+            intent="hold",
+            reason="safe_to_hold_for_price_plan",
+            temperature=48.0,
+            target_for=targets,
+            producing=False,
+        )
+
+    assert result.intent == "hold"
+    assert charge.intent is None

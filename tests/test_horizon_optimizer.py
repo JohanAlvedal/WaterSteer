@@ -139,7 +139,7 @@ def test_future_precharge_window_does_not_precharge_early() -> None:
     now = datetime(2026, 10, 9, 12, tzinfo=UTC)
     result = optimize_horizon(
         now=now,
-        current_temperature=48.0,
+        current_temperature=46.0,
         comfort_minimum=45.0,
         normal_target=50.0,
         precharge_target=55.0,
@@ -155,7 +155,7 @@ def test_future_precharge_window_does_not_precharge_early() -> None:
     )
 
     assert result.intent == "normal"
-    assert result.reason == "precharge_wait_below_normal_target"
+    assert result.reason == "precharge_wait_too_close_to_comfort"
 
 
 def test_away_home_never_uses_extra_boost() -> None:
@@ -254,12 +254,12 @@ def test_force_heat_overrides_missing_price_input() -> None:
     assert result.reason == "absolute_minimum_requires_immediate_heat"
 
 
-def test_price_hold_below_normal_target_fails_open_to_normal() -> None:
+def test_price_hold_close_to_comfort_fails_open_to_normal() -> None:
     """Physical blocking is not allowed below the configured normal target."""
     now = datetime(2026, 10, 11, 12, tzinfo=UTC)
     result = optimize_horizon(
         now=now,
-        current_temperature=48.0,
+        current_temperature=46.0,
         comfort_minimum=45.0,
         normal_target=50.0,
         precharge_target=55.0,
@@ -275,15 +275,15 @@ def test_price_hold_below_normal_target_fails_open_to_normal() -> None:
     )
 
     assert result.intent == "normal"
-    assert result.reason == "hold_guard_below_normal_target"
+    assert result.reason == "hold_guard_too_close_to_comfort"
 
 
-def test_waiting_precharge_below_normal_target_does_not_block() -> None:
+def test_waiting_precharge_close_to_comfort_does_not_block() -> None:
     """Waiting for a future precharge window must not block a cooling tank."""
     now = datetime(2026, 10, 11, 12, tzinfo=UTC)
     result = optimize_horizon(
         now=now,
-        current_temperature=48.0,
+        current_temperature=46.0,
         comfort_minimum=45.0,
         normal_target=50.0,
         precharge_target=55.0,
@@ -299,7 +299,7 @@ def test_waiting_precharge_below_normal_target_does_not_block() -> None:
     )
 
     assert result.intent == "normal"
-    assert result.reason == "precharge_wait_below_normal_target"
+    assert result.reason == "precharge_wait_too_close_to_comfort"
 
 
 def test_hold_hysteresis_and_minimum_charge() -> None:
@@ -336,6 +336,42 @@ def test_hold_hysteresis_and_minimum_charge() -> None:
     )
 
     assert continuing.intent == "hold"
-    assert fresh.intent == "normal"
-    assert tiny.intent == "normal"
+    assert fresh.intent == "hold"
+    assert tiny.intent == "hold"
     assert real.intent == "heat"
+
+
+def test_price_wait_below_normal_target_holds_when_margin_is_safe() -> None:
+    """Below the normal target but well above comfort, waiting is allowed.
+
+    Releasing here would make a self-starting heat pump heat immediately at
+    whatever the current price is.
+    """
+    now = datetime(2026, 1, 5, 6, tzinfo=UTC)
+    common = {
+        "now": now,
+        "comfort_minimum": 45.0,
+        "normal_target": 50.0,
+        "precharge_target": 55.0,
+        "safe_margin_minutes": 600.0,
+        "safe_margin_confidence": 90,
+        "demand": _demand(now, probability=0.1, drop=0.1),
+        "occupancy": True,
+        "price_input_valid": True,
+        "safety_allowed": True,
+        "safety_request": False,
+        "safety_force_request": False,
+    }
+    hold = optimize_horizon(
+        current_temperature=48.0,
+        price_plan=_plan(now, status="price_hold", active=False),
+        **common,
+    )
+    precharge_wait = optimize_horizon(
+        current_temperature=48.0,
+        price_plan=_plan(now, status="peak_precharge", active=False),
+        **common,
+    )
+
+    assert hold.intent == "hold"
+    assert precharge_wait.intent == "hold"

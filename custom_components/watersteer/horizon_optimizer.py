@@ -19,6 +19,14 @@ BOOST_RESERVE_MINUTES = 30.0
 # hold and heat every time the tank crosses the target.
 HOLD_HYSTERESIS_C = 2.5
 MIN_CHARGE_DEFICIT_C = 2.0
+# Waiting for a cheaper planned window is allowed down to this margin above
+# the comfort minimum. The planner has already checked that the window starts
+# before the predicted comfort deadline (with reserve), the shadow simulation
+# vetoes waits that would breach comfort, and the safety supervisor rejects
+# any hold below comfort. Releasing earlier is not "safer" on heat pumps that
+# start hot water by themselves a few degrees below their stop temperature:
+# there, unblocking means heating immediately at whatever the price is.
+PRICE_WAIT_COMFORT_MARGIN_C = 1.5
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,6 +64,7 @@ def optimize_horizon(
     """Choose the current advisory intent using safety, demand, and prices."""
     band = min(HOLD_HYSTERESIS_C, max(0.0, (normal_target - comfort_minimum) / 2))
     hold_floor = normal_target - band if holding else normal_target
+    price_wait_floor = min(hold_floor, comfort_minimum + PRICE_WAIT_COMFORT_MARGIN_C)
     if current_temperature is None:
         return _decision(
             "normal",
@@ -122,10 +131,10 @@ def optimize_horizon(
             )
 
         if not price_plan.window_active_now:
-            if current_temperature < hold_floor:
+            if current_temperature < price_wait_floor:
                 return _decision(
                     "normal",
-                    "precharge_wait_below_normal_target",
+                    "precharge_wait_too_close_to_comfort",
                     safe_margin_confidence,
                     demand,
                 )
@@ -171,7 +180,7 @@ def optimize_horizon(
     if price_plan.status == "price_charge_window":
         if current_temperature > normal_target - MIN_CHARGE_DEFICIT_C:
             return _decision(
-                "hold" if holding and current_temperature >= hold_floor else "normal",
+                "hold" if current_temperature >= price_wait_floor else "normal",
                 "deficit_too_small_to_start_charge",
                 safe_margin_confidence,
                 demand,
@@ -184,10 +193,10 @@ def optimize_horizon(
         )
 
     if price_plan.status in {"price_hold", "temperature_hold"}:
-        if current_temperature < hold_floor:
+        if current_temperature < price_wait_floor:
             return _decision(
                 "normal",
-                "hold_guard_below_normal_target",
+                "hold_guard_too_close_to_comfort",
                 safe_margin_confidence,
                 demand,
             )

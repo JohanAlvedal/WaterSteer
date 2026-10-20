@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from typing import Any
 
 DEFAULT_COMFORT_ESCALATION_MINUTES = 45.0
-DEFAULT_MAX_HOLD_HOURS = 6.0
+DEFAULT_MAX_HOLD_HOURS = 12.0
 HOLD_LOCKOUT_MINUTES = 60.0
 RECOVERY_RISE_C = 0.5
 
@@ -247,6 +247,7 @@ class DhwSafetySupervisor:
 HEATING_ASSIST_MINUTES = 15.0
 DEFAULT_START_DELAY_MINUTES = 20.0
 MAX_START_DELAY_SAMPLES = 10
+STALL_RISE_C = 0.2
 MAX_CHARGE_HOURS = 3.0
 CHARGE_INTENTS = frozenset({"heat", "precharge"})
 
@@ -289,6 +290,8 @@ class ChargeController:
         self.heating_requested_since: float | None = None
         self.warmed = False
         self.start_delays: list[float] = []
+        self.best_temperature: float | None = None
+        self.best_since: float | None = None
 
     @property
     def start_delay_minutes(self) -> float:
@@ -309,6 +312,7 @@ class ChargeController:
         producing: bool | None = None,
     ) -> ChargeResult:
         """Return the intent after charge latching and assist."""
+        original_intent, original_reason = intent, reason
         if temperature is None or intent in {"force_heat", "boost"}:
             self._reset()
             return ChargeResult(intent, reason, False, None)
@@ -360,6 +364,28 @@ class ChargeController:
                 # Extra hot water is requested now; measure the delay from here.
                 self.heating_requested_since = now
 
+        # Stall detection: a heat pump's own cycle often stops below the
+        # planned target (for example at 51-52 °C when the plan wants 55 °C).
+        if self.best_temperature is None or (
+            temperature >= self.best_temperature + STALL_RISE_C
+        ):
+            self.best_temperature = temperature
+            self.best_since = now
+        elif (
+            self.warmed
+            and producing is not True
+            and self.best_since is not None
+            and now - self.best_since >= HEATING_ASSIST_MINUTES * 60
+        ):
+            if not self.assist:
+                self.assist = True
+                self.best_since = now
+            elif now - self.best_since >= HEATING_ASSIST_MINUTES * 60:
+                # Even extra hot water does not raise the tank further: the
+                # charge is as complete as this heat pump allows.
+                self._reset()
+                return ChargeResult(original_intent, original_reason, False, None)
+
         return ChargeResult(intent, reason, self.assist, self.target)
 
     def _record_delay(self, minutes: float) -> None:
@@ -367,6 +393,8 @@ class ChargeController:
             self.start_delays = [*self.start_delays, minutes][-MAX_START_DELAY_SAMPLES:]
 
     def _reset(self) -> None:
+        self.best_temperature = None
+        self.best_since = None
         self.heating_requested_since = None
         self.warmed = False
         self.intent = None
@@ -387,6 +415,8 @@ class ChargeController:
             "heating_requested_since": self.heating_requested_since,
             "warmed": self.warmed,
             "start_delays": self.start_delays,
+            "best_temperature": self.best_temperature,
+            "best_since": self.best_since,
         }
 
     def restore(self, data: dict[str, Any] | None) -> None:
@@ -405,6 +435,8 @@ class ChargeController:
             data.get("heating_requested_since")
         )
         self.warmed = data.get("warmed") is True
+        self.best_temperature = _optional_float(data.get("best_temperature"))
+        self.best_since = _optional_float(data.get("best_since"))
         delays = data.get("start_delays")
         self.start_delays = (
             [
