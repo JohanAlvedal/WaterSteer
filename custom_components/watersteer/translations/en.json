@@ -71,7 +71,7 @@
           "extra_hot_water_entity": "Extra hot water switch"
         },
         "data_description": {
-          "heat_pump_dhw_active_entity": "Optional advanced signal. Select this only if your heat-pump integration exposes an entity that indicates actual DHW production. Many heat pumps do not provide this signal.",
+          "heat_pump_dhw_active_entity": "Optional. Either an on/off entity that is ON while the heat pump makes hot water, or a power sensor (W or kW) for hot water production; above 50 W counts as producing. Improves learning of heating rate, draws and start delay.",
           "block_entity": "Switch or input boolean that blocks hot water production when ON.",
           "extra_hot_water_entity": "Switch or input boolean that starts extra hot water when ON."
         }
@@ -144,7 +144,7 @@
           "extra_hot_water_entity": "Extra hot water switch"
         },
         "data_description": {
-          "heat_pump_dhw_active_entity": "Optional advanced signal. Select this only if your heat-pump integration exposes an entity that indicates actual DHW production. Many heat pumps do not provide this signal.",
+          "heat_pump_dhw_active_entity": "Optional. Either an on/off entity that is ON while the heat pump makes hot water, or a power sensor (W or kW) for hot water production; above 50 W counts as producing. Improves learning of heating rate, draws and start delay.",
           "block_entity": "Switch or input boolean that blocks hot water production when ON.",
           "extra_hot_water_entity": "Switch or input boolean that starts extra hot water when ON."
         }

@@ -71,7 +71,7 @@
           "extra_hot_water_entity": "Extra varmvatten"
         },
         "data_description": {
-          "heat_pump_dhw_active_entity": "Valfri signal om att pumpen faktiskt producerar varmvatten. Många pumpar saknar den.",
+          "heat_pump_dhw_active_entity": "Valfri. Antingen en på/av-entitet som är PÅ när pumpen gör varmvatten, eller en effektsensor (W eller kW) för varmvattenproduktion; över 50 W räknas som produktion. Ger säkrare inlärning av uppvärmning, tappningar och startfördröjning.",
           "block_entity": "Brytare eller input boolean som blockerar varmvattenproduktion när den är PÅ.",
           "extra_hot_water_entity": "Brytare eller input boolean som startar extra varmvatten när den är PÅ."
         }
@@ -144,7 +144,7 @@
           "extra_hot_water_entity": "Extra varmvatten"
         },
         "data_description": {
-          "heat_pump_dhw_active_entity": "Valfri signal om att pumpen faktiskt producerar varmvatten. Många pumpar saknar den.",
+          "heat_pump_dhw_active_entity": "Valfri. Antingen en på/av-entitet som är PÅ när pumpen gör varmvatten, eller en effektsensor (W eller kW) för varmvattenproduktion; över 50 W räknas som produktion. Ger säkrare inlärning av uppvärmning, tappningar och startfördröjning.",
           "block_entity": "Brytare eller input boolean som blockerar varmvattenproduktion när den är PÅ.",
           "extra_hot_water_entity": "Brytare eller input boolean som startar extra varmvatten när den är PÅ."
         }

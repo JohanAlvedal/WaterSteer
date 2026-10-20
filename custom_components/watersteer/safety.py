@@ -306,6 +306,7 @@ class ChargeController:
         reason: str,
         temperature: float | None,
         target_for: dict[str, float],
+        producing: bool | None = None,
     ) -> ChargeResult:
         """Return the intent after charge latching and assist."""
         if temperature is None or intent in {"force_heat", "boost"}:
@@ -340,7 +341,9 @@ class ChargeController:
             intent = self.intent
             reason = "finishing_planned_charge"
 
-        warmed = (
+        # A production signal (power or on/off) shows the start directly;
+        # otherwise a temperature rise is the evidence.
+        warmed = producing is True or (
             self.start_temperature is not None
             and temperature >= self.start_temperature + RECOVERY_RISE_C
         )

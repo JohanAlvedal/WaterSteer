@@ -128,6 +128,28 @@ def _binary_state_hint(state: State | None) -> bool | None:
     return None
 
 
+DHW_ACTIVE_POWER_THRESHOLD_W = 50.0
+
+
+def _production_hint(state: State | None) -> bool | None:
+    """Return whether DHW is being produced from an on/off or power entity.
+
+    A numeric entity (for example DHW production power in W or kW) counts as
+    active above a small threshold, so standby noise is ignored.
+    """
+    if state is None:
+        return None
+    binary = _binary_state_hint(state)
+    if binary is not None:
+        return binary
+    value = _as_float(state.state)
+    if value is None:
+        return None
+    unit = str(state.attributes.get("unit_of_measurement", "")).strip()
+    watts = value * 1000 if unit.lower() == "kw" else value
+    return watts > DHW_ACTIVE_POWER_THRESHOLD_W
+
+
 def _occupancy_hint(state: State | None) -> bool | None:
     """Normalize an optional Home Assistant occupancy entity."""
     if state is None or state.state in {STATE_UNKNOWN, STATE_UNAVAILABLE}:
@@ -392,7 +414,7 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         now = dt_util.utcnow()
         now_local = dt_util.as_local(now)
-        heating_hint = _binary_state_hint(dhw_active_state)
+        heating_hint = _production_hint(dhw_active_state)
         thermal_observation_added = False
         usage_observation_added = False
 
@@ -521,7 +543,7 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
         external_heating_entity = config.get(CONF_EXTERNAL_HEATING_ENTITY)
         external_heating_active = (
-            _binary_state_hint(self.hass.states.get(external_heating_entity)) is True
+            _production_hint(self.hass.states.get(external_heating_entity)) is True
             if external_heating_entity
             else False
         )
@@ -534,6 +556,7 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             intent=safety_result.intent,
             reason=safety_result.reason,
             temperature=dhw_temperature,
+            producing=heating_hint,
             target_for={
                 # Comfort recovery only needs to get back above comfort; a
                 # planned cheap charge fills the tank well above normal target

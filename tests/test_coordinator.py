@@ -58,3 +58,22 @@ def test_occupancy_hint_supports_binary_and_person_entities() -> None:
     assert _occupancy_hint(State("person.someone", "home")) is True
     assert _occupancy_hint(State("person.someone", "work")) is False
     assert _occupancy_hint(State("person.someone", "unavailable")) is None
+
+
+def test_production_hint_accepts_power_sensors() -> None:
+    """A DHW production power sensor counts as active above a small threshold."""
+    from custom_components.watersteer.coordinator import _production_hint
+
+    def power(value: str, unit: str = "W") -> State:
+        return State(
+            "sensor.varmvatten_produktion_i_w",
+            value,
+            {"unit_of_measurement": unit},
+        )
+
+    assert _production_hint(power("2400")) is True
+    assert _production_hint(power("0")) is False
+    assert _production_hint(power("12")) is False
+    assert _production_hint(power("1.8", "kW")) is True
+    assert _production_hint(power("unavailable")) is None
+    assert _production_hint(State("binary_sensor.valve", "on")) is True

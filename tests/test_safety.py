@@ -320,3 +320,31 @@ def test_start_delay_is_learned_from_extra_hot_water_requests() -> None:
     restored = ChargeController()
     restored.restore(charge.as_dict())
     assert restored.start_delay_minutes == 35
+
+
+def test_production_signal_marks_start_before_temperature_rises() -> None:
+    """With a power signal the start delay is measured at production start."""
+    from custom_components.watersteer.safety import ChargeController
+
+    charge = ChargeController()
+    targets = {"heat": 52.5, "precharge": 55.0}
+    charge.evaluate(
+        now=0,
+        intent="heat",
+        reason="w",
+        temperature=47.0,
+        target_for=targets,
+        producing=False,
+    )
+    result = charge.evaluate(
+        now=10 * MINUTE,
+        intent="heat",
+        reason="w",
+        temperature=47.0,
+        target_for=targets,
+        producing=True,
+    )
+
+    assert not result.assist
+    assert charge.pump_starts_on_its_own is True
+    assert charge.start_delays == [10.0]
