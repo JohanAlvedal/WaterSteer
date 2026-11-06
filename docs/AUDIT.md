@@ -1,10 +1,14 @@
 # WaterSteer audit — October 2026
 
-> **Implementation status (branch `feat/simple-control`):** phases 1–5 of the
-> roadmap below are implemented: safety supervisor, single arbitration point
+> **Historical document.** This audit describes the code as it was in
+> October 2026. Phases 1–5 of the roadmap below have since been implemented
+> and merged into `main` (PR #2): safety supervisor, single arbitration point
 > with two physical levers, optional Active control, the simplified entity
 > surface (sections 3–4), corrected thermal learning and the shadow price
-> planner. See [ROADMAP.md](../ROADMAP.md) for the current status.
+> planner. Statements such as "no actuation" and the phase statuses in
+> section 6 are therefore out of date, and the default maximum hold is now
+> 12 h (see B18), not 6 h. See [ROADMAP.md](../ROADMAP.md) and the
+> [README](../README.md) for the current state.
 
 Scope: branch `feat/0.1-foundation` (50 commits ahead of `main`; `main` only
 contains the 0.1 skeleton). Audit performed against commit `dd019af`.

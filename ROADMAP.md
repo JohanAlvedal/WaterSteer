@@ -2,7 +2,7 @@
 
 Status legend: **production-ready** · **implemented / validating** · **incomplete** · **experimental** · **planned**.
 
-Nothing is marked production-ready yet: every part below still needs field validation on real installations before a 1.0 release.
+Nothing is marked production-ready yet: every part below still needs field validation on real installations before a 1.0 release. WaterSteer is under development; running it, and in particular Active control, is at your own risk (see the warning in the [README](README.md)).
 
 ## Implemented / validating
 
