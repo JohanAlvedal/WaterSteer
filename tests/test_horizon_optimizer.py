@@ -329,6 +329,10 @@ def test_hold_hysteresis_and_minimum_charge() -> None:
         current_temperature=48.5, price_plan=hold_plan, holding=False, **common
     )
     tiny = optimize_horizon(
+        current_temperature=49.5, price_plan=window, holding=False, **common
+    )
+    # Field case (IVT, 6 Nov): 49.0 °C in the cheapest night window must charge.
+    field = optimize_horizon(
         current_temperature=49.0, price_plan=window, holding=False, **common
     )
     real = optimize_horizon(
@@ -338,6 +342,7 @@ def test_hold_hysteresis_and_minimum_charge() -> None:
     assert continuing.intent == "hold"
     assert fresh.intent == "hold"
     assert tiny.intent == "hold"
+    assert field.intent == "heat"
     assert real.intent == "heat"
 
 
