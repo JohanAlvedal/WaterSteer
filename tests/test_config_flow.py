@@ -1,9 +1,16 @@
 """Tests for the WaterSteer config flow."""
 
 from custom_components.watersteer.const import (
+    CONF_ABSOLUTE_MINIMUM,
+    CONF_BLOCK_ENTITY,
+    CONF_COMFORT_MINIMUM,
     CONF_DHW_TEMPERATURE_ENTITY,
     CONF_ELECTRICITY_PRICE_ENTITY,
-    CONF_HEAT_PUMP_BOOST_ACTION,
+    CONF_EXTRA_HOT_WATER_ENTITY,
+    CONF_MIN_THERMAL_CONFIDENCE,
+    CONF_NORMAL_TARGET,
+    CONF_OCCUPANCY_ENTITY,
+    CONF_PRECHARGE_TARGET,
     CONF_STANDALONE_CONTROL_SWITCH,
     CONF_SYSTEM_TYPE,
     DOMAIN,
@@ -14,31 +21,39 @@ from homeassistant import config_entries
 from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+THRESHOLDS = {
+    CONF_ABSOLUTE_MINIMUM: 40.0,
+    CONF_COMFORT_MINIMUM: 45.0,
+    CONF_NORMAL_TARGET: 50.0,
+    CONF_PRECHARGE_TARGET: 55.0,
+    CONF_MIN_THERMAL_CONFIDENCE: 50,
+}
+
 
 async def test_standalone_config_flow(hass) -> None:
-    """Standalone setup asks for a control switch and creates an entry."""
+    """Standalone setup includes thresholds before control configuration."""
     result = await hass.config_entries.flow.async_init(
         DOMAIN,
         context={"source": config_entries.SOURCE_USER},
     )
-    assert result["type"] is FlowResultType.FORM
-    assert result["step_id"] == "user"
-
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
         {CONF_SYSTEM_TYPE: SYSTEM_TYPE_STANDALONE},
     )
-    assert result["type"] is FlowResultType.FORM
-    assert result["step_id"] == "sensors"
-
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
         {
             CONF_DHW_TEMPERATURE_ENTITY: "sensor.dhw_temperature",
             CONF_ELECTRICITY_PRICE_ENTITY: "sensor.electricity_price",
+            CONF_OCCUPANCY_ENTITY: "binary_sensor.home_occupied",
         },
     )
-    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "thresholds"
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        THRESHOLDS,
+    )
     assert result["step_id"] == "standalone_control"
 
     result = await hass.config_entries.flow.async_configure(
@@ -46,17 +61,17 @@ async def test_standalone_config_flow(hass) -> None:
         {CONF_STANDALONE_CONTROL_SWITCH: "switch.water_heater"},
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert result["data"][CONF_SYSTEM_TYPE] == SYSTEM_TYPE_STANDALONE
-    assert result["data"][CONF_STANDALONE_CONTROL_SWITCH] == "switch.water_heater"
+    assert result["data"][CONF_NORMAL_TARGET] == 50.0
+    assert result["data"][CONF_MIN_THERMAL_CONFIDENCE] == 50
+    assert result["data"][CONF_OCCUPANCY_ENTITY] == "binary_sensor.home_occupied"
 
 
-async def test_heat_pump_config_flow(hass) -> None:
-    """Heat-pump setup accepts generic Home Assistant actions."""
+async def test_heat_pump_config_flow_without_active_signal(hass) -> None:
+    """Heat-pump setup works without an explicit production-active signal."""
     result = await hass.config_entries.flow.async_init(
         DOMAIN,
         context={"source": config_entries.SOURCE_USER},
     )
-
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
         {CONF_SYSTEM_TYPE: SYSTEM_TYPE_HEAT_PUMP},
@@ -68,26 +83,62 @@ async def test_heat_pump_config_flow(hass) -> None:
             CONF_ELECTRICITY_PRICE_ENTITY: "sensor.electricity_price",
         },
     )
-    assert result["step_id"] == "heat_pump_control"
-
-    boost_action = [
-        {
-            "action": "switch.turn_on",
-            "target": {"entity_id": "switch.dhw_boost"},
-        }
-    ]
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
-        {CONF_HEAT_PUMP_BOOST_ACTION: boost_action},
+        THRESHOLDS,
+    )
+    assert result["step_id"] == "heat_pump_control"
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_BLOCK_ENTITY: "switch.blockera_varmvatten",
+            CONF_EXTRA_HOT_WATER_ENTITY: "input_boolean.hp_extra_warm_water",
+        },
     )
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert result["data"][CONF_SYSTEM_TYPE] == SYSTEM_TYPE_HEAT_PUMP
-    assert result["data"][CONF_HEAT_PUMP_BOOST_ACTION] == boost_action
+    assert result["data"][CONF_BLOCK_ENTITY] == "switch.blockera_varmvatten"
+    assert (
+        result["data"][CONF_EXTRA_HOT_WATER_ENTITY]
+        == "input_boolean.hp_extra_warm_water"
+    )
 
 
-async def test_options_flow_changes_heat_pump_configuration(hass) -> None:
-    """Options flow allows an existing WaterSteer entry to be reconfigured."""
+async def test_invalid_threshold_order_is_rejected(hass) -> None:
+    """Invalid temperature threshold ordering keeps the user on the form."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_USER},
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {CONF_SYSTEM_TYPE: SYSTEM_TYPE_HEAT_PUMP},
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_DHW_TEMPERATURE_ENTITY: "sensor.dhw_temperature",
+            CONF_ELECTRICITY_PRICE_ENTITY: "sensor.electricity_price",
+        },
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_ABSOLUTE_MINIMUM: 46.0,
+            CONF_COMFORT_MINIMUM: 45.0,
+            CONF_NORMAL_TARGET: 50.0,
+            CONF_PRECHARGE_TARGET: 55.0,
+        },
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "thresholds"
+    assert result["errors"]["base"] == "invalid_threshold_order"
+
+
+async def test_options_flow_adds_thresholds_to_existing_entry(hass) -> None:
+    """Older entries receive configurable thresholds through Options Flow."""
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={
@@ -99,9 +150,6 @@ async def test_options_flow_changes_heat_pump_configuration(hass) -> None:
     entry.add_to_hass(hass)
 
     result = await hass.config_entries.options.async_init(entry.entry_id)
-    assert result["type"] is FlowResultType.FORM
-    assert result["step_id"] == "init"
-
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],
         {
@@ -110,16 +158,21 @@ async def test_options_flow_changes_heat_pump_configuration(hass) -> None:
             CONF_ELECTRICITY_PRICE_ENTITY: "sensor.new_electricity_price",
         },
     )
-    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "thresholds"
+
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        THRESHOLDS,
+    )
     assert result["step_id"] == "heat_pump_control"
 
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],
-        {},
+        {CONF_BLOCK_ENTITY: "switch.blockera_varmvatten"},
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert result["data"][CONF_SYSTEM_TYPE] == SYSTEM_TYPE_HEAT_PUMP
-    assert result["data"][CONF_DHW_TEMPERATURE_ENTITY] == "sensor.new_dhw_temperature"
+    assert result["data"][CONF_ABSOLUTE_MINIMUM] == 40.0
+    assert result["data"][CONF_NORMAL_TARGET] == 50.0
 
     await hass.async_block_till_done()
     await hass.config_entries.async_unload(entry.entry_id)

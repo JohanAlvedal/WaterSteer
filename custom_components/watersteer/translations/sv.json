@@ -1,0 +1,308 @@
+{
+  "title": "WaterSteer",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Varmvattensystem",
+        "description": "Välj hur tappvarmvattnet produceras.",
+        "data": {
+          "system_type": "Systemtyp"
+        },
+        "data_description": {
+          "system_type": "Fristående varmvattenberedare eller värmepump med inbyggd varmvattenberedning."
+        }
+      },
+      "sensors": {
+        "title": "Givare",
+        "description": "Välj de entiteter WaterSteer ska läsa.",
+        "data": {
+          "dhw_temperature_entity": "Varmvattentemperatur",
+          "electricity_price_entity": "Elpris",
+          "occupancy_entity": "Närvaro (valfri)",
+          "external_heating_entity": "Annan värmekälla aktiv (valfri)"
+        },
+        "data_description": {
+          "dhw_temperature_entity": "Givare för aktuell varmvattentemperatur.",
+          "electricity_price_entity": "Elprisgivare. Kommande priser läses från attribut (t.ex. Nordpool raw_today/raw_tomorrow).",
+          "occupancy_entity": "Binärsensor, input boolean eller person. Används bara för att förfina förväntad förbrukning.",
+          "external_heating_entity": "T.ex. iBoost eller elpatron. När den är på förvärmer WaterSteer inte."
+        }
+      },
+      "thresholds": {
+        "title": "Temperaturgränser",
+        "description": "Temperaturgränser för beredaren, lägst först. Komfort går alltid före pris.",
+        "data": {
+          "absolute_minimum": "Absolut minimum",
+          "comfort_minimum": "Komfortminimum",
+          "normal_target": "Normalmål",
+          "precharge_target": "Förladdningsmål",
+          "min_thermal_confidence": "Minsta inlärningssäkerhet för att hålla",
+          "max_hold_hours": "Längsta sammanhängande blockering",
+          "comfort_escalation_minutes": "Eskalering vid låg temperatur"
+        },
+        "data_description": {
+          "absolute_minimum": "Vid eller under denna temperatur begärs extra varmvatten direkt.",
+          "comfort_minimum": "Under denna temperatur tillåts uppvärmning oavsett elpris.",
+          "normal_target": "Vid eller över denna temperatur räcker varmvattnet. Under den kan uppvärmning ändå vänta på ett billigare planerat fönster så länge tanken ligger minst 1,5 °C över komfortminimum.",
+          "precharge_target": "Mål vid uppvärmning inför en dyr period. Billig el ensam startar aldrig uppvärmning.",
+          "min_thermal_confidence": "WaterSteer blockerar aldrig varmvatten innan inlärningen nått denna nivå. Standard 50 %.",
+          "max_hold_hours": "Längsta tid WaterSteer får blockera i sträck. Därefter normal drift i minst en timme.",
+          "comfort_escalation_minutes": "Om tanken ligger under komfortminimum så här länge utan att värmas begärs extra varmvatten."
+        }
+      },
+      "standalone_control": {
+        "title": "Fristående beredare",
+        "description": "Valfritt. Välj brytaren WaterSteer får styra i läget Aktiv styrning.",
+        "data": {
+          "standalone_control_switch": "Brytare för beredaren",
+          "standalone_power_sensor": "Effektgivare för beredaren"
+        },
+        "data_description": {
+          "standalone_control_switch": "Brytare som slår på beredaren när den är PÅ. Styrs bara i läget Aktiv styrning.",
+          "standalone_power_sensor": "Valfri effektgivare."
+        }
+      },
+      "heat_pump_control": {
+        "title": "Värmepumpens varmvatten",
+        "description": "Valfritt. Välj entiteterna WaterSteer får styra i läget Aktiv styrning. Lämna tomt för att bara få rekommendationer.",
+        "data": {
+          "heat_pump_dhw_active_entity": "Varmvattenproduktion pågår",
+          "block_entity": "Blockera varmvatten",
+          "extra_hot_water_entity": "Extra varmvatten",
+          "extra_hot_water_for_planned_charges": "Extra varmvatten vid planerade laddningar"
+        },
+        "data_description": {
+          "heat_pump_dhw_active_entity": "Valfri. Antingen en på/av-entitet som är PÅ när pumpen gör varmvatten, eller en effektsensor (W eller kW) för varmvattenproduktion; över 50 W räknas som produktion. Ger säkrare inlärning av uppvärmning, tappningar och startfördröjning.",
+          "block_entity": "Brytare eller input boolean som blockerar varmvattenproduktion när den är PÅ.",
+          "extra_hot_water_entity": "Brytare eller input boolean som startar extra varmvatten när den är PÅ.",
+          "extra_hot_water_for_planned_charges": "Om värmepumpen inte startar en prisplanerad laddning själv begärs extra varmvatten. Stäng av om extra varmvatten går på elpatronen i din värmepump: planerade laddningar släpper då bara blockeringen, och extra varmvatten används bara för komfortåterhämtning och skydd."
+        }
+      }
+    },
+    "error": {
+      "invalid_threshold_order": "Gränserna måste vara i ordning: absolut minimum < komfortminimum < normalmål < förladdningsmål."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "WaterSteer-inställningar",
+        "description": "Ändra givare och systemtyp. Integrationen laddas om när du sparar.",
+        "data": {
+          "system_type": "Systemtyp",
+          "dhw_temperature_entity": "Varmvattentemperatur",
+          "electricity_price_entity": "Elpris",
+          "occupancy_entity": "Närvaro (valfri)",
+          "external_heating_entity": "Annan värmekälla aktiv (valfri)"
+        },
+        "data_description": {
+          "system_type": "Fristående varmvattenberedare eller värmepump med inbyggd varmvattenberedning.",
+          "dhw_temperature_entity": "Givare för aktuell varmvattentemperatur.",
+          "electricity_price_entity": "Elprisgivare. Kommande priser läses från attribut (t.ex. Nordpool raw_today/raw_tomorrow).",
+          "occupancy_entity": "Binärsensor, input boolean eller person. Används bara för att förfina förväntad förbrukning.",
+          "external_heating_entity": "T.ex. iBoost eller elpatron. När den är på förvärmer WaterSteer inte."
+        }
+      },
+      "thresholds": {
+        "title": "Temperaturgränser",
+        "description": "Temperaturgränser för beredaren, lägst först. Komfort går alltid före pris.",
+        "data": {
+          "absolute_minimum": "Absolut minimum",
+          "comfort_minimum": "Komfortminimum",
+          "normal_target": "Normalmål",
+          "precharge_target": "Förladdningsmål",
+          "min_thermal_confidence": "Minsta inlärningssäkerhet för att hålla",
+          "max_hold_hours": "Längsta sammanhängande blockering",
+          "comfort_escalation_minutes": "Eskalering vid låg temperatur"
+        },
+        "data_description": {
+          "absolute_minimum": "Vid eller under denna temperatur begärs extra varmvatten direkt.",
+          "comfort_minimum": "Under denna temperatur tillåts uppvärmning oavsett elpris.",
+          "normal_target": "Vid eller över denna temperatur räcker varmvattnet. Under den kan uppvärmning ändå vänta på ett billigare planerat fönster så länge tanken ligger minst 1,5 °C över komfortminimum.",
+          "precharge_target": "Mål vid uppvärmning inför en dyr period. Billig el ensam startar aldrig uppvärmning.",
+          "min_thermal_confidence": "WaterSteer blockerar aldrig varmvatten innan inlärningen nått denna nivå. Standard 50 %.",
+          "max_hold_hours": "Längsta tid WaterSteer får blockera i sträck. Därefter normal drift i minst en timme.",
+          "comfort_escalation_minutes": "Om tanken ligger under komfortminimum så här länge utan att värmas begärs extra varmvatten."
+        }
+      },
+      "standalone_control": {
+        "title": "Fristående beredare",
+        "description": "Valfritt. Välj brytaren WaterSteer får styra i läget Aktiv styrning.",
+        "data": {
+          "standalone_control_switch": "Brytare för beredaren",
+          "standalone_power_sensor": "Effektgivare för beredaren"
+        },
+        "data_description": {
+          "standalone_control_switch": "Brytare som slår på beredaren när den är PÅ. Styrs bara i läget Aktiv styrning.",
+          "standalone_power_sensor": "Valfri effektgivare."
+        }
+      },
+      "heat_pump_control": {
+        "title": "Värmepumpens varmvatten",
+        "description": "Valfritt. Välj entiteterna WaterSteer får styra i läget Aktiv styrning. Lämna tomt för att bara få rekommendationer.",
+        "data": {
+          "heat_pump_dhw_active_entity": "Varmvattenproduktion pågår",
+          "block_entity": "Blockera varmvatten",
+          "extra_hot_water_entity": "Extra varmvatten",
+          "extra_hot_water_for_planned_charges": "Extra varmvatten vid planerade laddningar"
+        },
+        "data_description": {
+          "heat_pump_dhw_active_entity": "Valfri. Antingen en på/av-entitet som är PÅ när pumpen gör varmvatten, eller en effektsensor (W eller kW) för varmvattenproduktion; över 50 W räknas som produktion. Ger säkrare inlärning av uppvärmning, tappningar och startfördröjning.",
+          "block_entity": "Brytare eller input boolean som blockerar varmvattenproduktion när den är PÅ.",
+          "extra_hot_water_entity": "Brytare eller input boolean som startar extra varmvatten när den är PÅ.",
+          "extra_hot_water_for_planned_charges": "Om värmepumpen inte startar en prisplanerad laddning själv begärs extra varmvatten. Stäng av om extra varmvatten går på elpatronen i din värmepump: planerade laddningar släpper då bara blockeringen, och extra varmvatten används bara för komfortåterhämtning och skydd."
+        }
+      }
+    },
+    "error": {
+      "invalid_threshold_order": "Gränserna måste vara i ordning: absolut minimum < komfortminimum < normalmål < förladdningsmål."
+    }
+  },
+  "selector": {
+    "system_type": {
+      "options": {
+        "standalone_water_heater": "Fristående varmvattenberedare (t.ex. styrd via kontaktor eller relä)",
+        "heat_pump_integrated_dhw": "Värmepump med inbyggt varmvatten"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "mode": {
+        "name": "Indatastatus"
+      },
+      "decision": {
+        "name": "Beslut"
+      },
+      "dhw_temperature": {
+        "name": "Varmvattentemperatur"
+      },
+      "standby_loss": {
+        "name": "Stilleståndsförlust"
+      },
+      "heating_rate": {
+        "name": "Uppvärmningshastighet"
+      },
+      "projected_temperature_1h": {
+        "name": "Beräknad temperatur om 1 timme"
+      },
+      "time_to_comfort": {
+        "name": "Tid till komfortminimum"
+      },
+      "learning_confidence": {
+        "name": "Thermal learning confidence"
+      },
+      "usage_probability_next_6h": {
+        "name": "Sannolikhet för tappning kommande 6 h"
+      },
+      "next_expected_usage": {
+        "name": "Nästa förväntade tappning"
+      },
+      "typical_usage_drop": {
+        "name": "Typiskt temperaturfall vid tappning"
+      },
+      "usage_learning_confidence": {
+        "name": "Inlärningssäkerhet förbrukning"
+      },
+      "expected_usage_drop_next_6h": {
+        "name": "Förväntat temperaturfall kommande 6 h"
+      },
+      "demand_level": {
+        "name": "Varmvattenbehov"
+      },
+      "passive_autonomy": {
+        "name": "Passiv räckvidd"
+      },
+      "predicted_autonomy": {
+        "name": "Beräknad räckvidd"
+      },
+      "predicted_temperature_6h": {
+        "name": "Beräknad temperatur om 6 timmar"
+      },
+      "autonomy_confidence": {
+        "name": "Säkerhet räckvidd"
+      },
+      "price_plan_status": {
+        "name": "Prisplanens status"
+      },
+      "next_charge": {
+        "name": "Nästa planerade uppvärmning"
+      },
+      "expected_charge_duration": {
+        "name": "Förväntad uppvärmningstid"
+      },
+      "planned_target": {
+        "name": "Planerat mål"
+      },
+      "selected_price": {
+        "name": "Valt pris för uppvärmning"
+      },
+      "control_mode": {
+        "name": "Styrläge"
+      },
+      "safe_margin": {
+        "name": "Varmvatten räcker"
+      },
+      "safe_margin_confidence": {
+        "name": "Säkerhet för marginal"
+      },
+      "control_request": {
+        "name": "Control request",
+        "state": {
+          "hold": "Håll",
+          "normal": "Normal",
+          "heat": "Värm",
+          "force_heat": "Tvinga värme",
+          "precharge": "Förladda",
+          "boost": "Boost"
+        }
+      },
+      "status": {
+        "name": "Status",
+        "state": {
+          "off": "Av",
+          "fallback": "Reservläge",
+          "protecting": "Skyddar varmvattnet",
+          "holding": "Väntar med uppvärmning",
+          "preheating": "Förvärmer",
+          "heating": "Värmer",
+          "learning": "Lär sig",
+          "allowing": "Normal drift"
+        }
+      },
+      "optimization": {
+        "name": "Förväntad besparing"
+      }
+    },
+    "binary_sensor": {
+      "dhw_allowed": {
+        "name": "Varmvatten tillåtet"
+      },
+      "dhw_request": {
+        "name": "Varmvattenbegäran"
+      },
+      "force_request": {
+        "name": "Tvingad begäran"
+      },
+      "usage_detected": {
+        "name": "Tappning upptäckt"
+      },
+      "safety": {
+        "name": "Säkerhet"
+      },
+      "extra_hot_water": {
+        "name": "Begäran om extra varmvatten"
+      }
+    },
+    "select": {
+      "operating_mode": {
+        "name": "Läge",
+        "state": {
+          "advisory": "Rådgivande",
+          "active": "Aktiv styrning",
+          "off": "Av"
+        }
+      }
+    }
+  }
+}

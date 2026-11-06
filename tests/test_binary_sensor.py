@@ -3,46 +3,67 @@
 from unittest.mock import Mock
 
 from custom_components.watersteer.binary_sensor import (
-    WaterSteerDhwAllowedBinarySensor,
+    BINARY_SENSORS,
+    WaterSteerDecisionBinarySensor,
 )
 
+_BY_KEY = {description.key: description for description in BINARY_SENSORS}
 
-def test_dhw_allowed_binary_sensor_debug_attributes() -> None:
-    """DHW allowed is on when WaterSteer is not braking production."""
+
+def _entity(key: str, **data) -> WaterSteerDecisionBinarySensor:
     coordinator = Mock()
     coordinator.data = {
+        "control_request": "normal",
+        "control_request_reason": "no_optimized_action_required",
+        "safety_warnings": [],
+        "safety_problem": False,
         "dhw_allowed": True,
-        "dhw_allowed_reason": "learning_observation",
-        "mode": "learning",
-        "system_type": "heat_pump_integrated_dhw",
-        "dhw_temperature": 50.7,
-        "electricity_price": 0.84,
+        "extra_hot_water": False,
+        "force_request": False,
+        "dhw_request": False,
+        "usage_detected": False,
+        **data,
     }
     entry = Mock()
     entry.entry_id = "test_entry"
+    return WaterSteerDecisionBinarySensor(coordinator, entry, _BY_KEY[key])
 
-    entity = WaterSteerDhwAllowedBinarySensor(coordinator, entry)
+
+def test_safety_problem_lists_warnings() -> None:
+    """The Safety entity is on with actionable warnings."""
+    entity = _entity(
+        "safety",
+        safety_problem=True,
+        safety_warnings=["dhw_temperature_unavailable"],
+    )
 
     assert entity.is_on is True
-    assert entity.extra_state_attributes["reason"] == "learning_observation"
-    assert entity.extra_state_attributes["current_temperature"] == 50.7
-
-
-def test_dhw_allowed_binary_sensor_off_means_braking() -> None:
-    """DHW allowed is off when future control logic is braking production."""
-    coordinator = Mock()
-    coordinator.data = {
-        "dhw_allowed": False,
-        "dhw_allowed_reason": "high_price_hold",
-        "mode": "price_hold",
-        "system_type": "heat_pump_integrated_dhw",
-        "dhw_temperature": 55.0,
-        "electricity_price": 2.10,
+    assert entity.extra_state_attributes == {
+        "warnings": ["dhw_temperature_unavailable"]
     }
-    entry = Mock()
-    entry.entry_id = "test_entry"
 
-    entity = WaterSteerDhwAllowedBinarySensor(coordinator, entry)
 
-    assert entity.is_on is False
-    assert entity.extra_state_attributes["reason"] == "high_price_hold"
+def test_levers_follow_control_request() -> None:
+    """The two physical levers mirror the published request."""
+    blocked = _entity("dhw_allowed", dhw_allowed=False, control_request="hold")
+    extra = _entity(
+        "extra_hot_water",
+        extra_hot_water=True,
+        control_request="force_heat",
+    )
+
+    assert blocked.is_on is False
+    assert extra.is_on is True
+    assert extra.extra_state_attributes["control_request"] == "force_heat"
+
+
+def test_primary_surface_is_small_by_default() -> None:
+    """Only the Safety binary sensor is enabled for new installations."""
+    enabled = [d.key for d in BINARY_SENSORS if d.entity_registry_enabled_default]
+
+    assert enabled == ["safety"]
+
+
+def test_usage_detected_binary_sensor() -> None:
+    """Usage detection remains available as a diagnostic entity."""
+    assert _entity("usage_detected", usage_detected=True).is_on is True

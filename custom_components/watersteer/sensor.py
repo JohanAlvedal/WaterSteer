@@ -13,14 +13,19 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfTemperature
+from homeassistant.const import (
+    PERCENTAGE,
+    EntityCategory,
+    UnitOfTemperature,
+    UnitOfTime,
+)
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
 from .coordinator import WaterSteerDataUpdateCoordinator
+from .decision import STATUSES
+from .entity import device_info
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -32,17 +37,246 @@ class WaterSteerSensorEntityDescription(SensorEntityDescription):
 
 SENSORS: tuple[WaterSteerSensorEntityDescription, ...] = (
     WaterSteerSensorEntityDescription(
+        key="status",
+        translation_key="status",
+        device_class=SensorDeviceClass.ENUM,
+        options=list(STATUSES),
+        value_fn=lambda data: data["status"],
+    ),
+    WaterSteerSensorEntityDescription(
+        key="optimization",
+        translation_key="optimization",
+        native_unit_of_measurement=PERCENTAGE,
+        suggested_display_precision=0,
+        value_fn=lambda data: (
+            round(data["optimization_saving_percent"], 1)
+            if data["optimization_saving_percent"] is not None
+            else None
+        ),
+    ),
+    WaterSteerSensorEntityDescription(
         key="mode",
         translation_key="mode",
+        entity_registry_enabled_default=False,
+        entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda data: data["mode"],
+    ),
+    WaterSteerSensorEntityDescription(
+        key="control_mode",
+        translation_key="control_mode",
+        entity_registry_enabled_default=False,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data: data["control_mode"],
+    ),
+    WaterSteerSensorEntityDescription(
+        key="decision",
+        translation_key="decision",
+        entity_registry_enabled_default=False,
+        value_fn=lambda data: data["decision"],
+    ),
+    WaterSteerSensorEntityDescription(
+        key="control_request",
+        translation_key="control_request",
+        value_fn=lambda data: data["control_request"],
     ),
     WaterSteerSensorEntityDescription(
         key="dhw_temperature",
         translation_key="dhw_temperature",
+        entity_registry_enabled_default=False,
         device_class=SensorDeviceClass.TEMPERATURE,
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda data: data["dhw_temperature"],
+    ),
+    WaterSteerSensorEntityDescription(
+        key="standby_loss",
+        translation_key="standby_loss",
+        entity_registry_enabled_default=False,
+        native_unit_of_measurement="°C/h",
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=2,
+        value_fn=lambda data: data["standby_loss"],
+    ),
+    WaterSteerSensorEntityDescription(
+        key="heating_rate",
+        translation_key="heating_rate",
+        entity_registry_enabled_default=False,
+        native_unit_of_measurement="°C/h",
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=2,
+        value_fn=lambda data: data["heating_rate"],
+    ),
+    WaterSteerSensorEntityDescription(
+        key="projected_temperature_1h",
+        translation_key="projected_temperature_1h",
+        entity_registry_enabled_default=False,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        value_fn=lambda data: data["projected_temperature_1h"],
+    ),
+    WaterSteerSensorEntityDescription(
+        key="time_to_comfort",
+        translation_key="time_to_comfort",
+        entity_registry_enabled_default=False,
+        device_class=SensorDeviceClass.DURATION,
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+        value_fn=lambda data: data["minutes_to_comfort"],
+    ),
+    WaterSteerSensorEntityDescription(
+        key="learning_confidence",
+        translation_key="learning_confidence",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda data: data["learning_confidence"],
+    ),
+    WaterSteerSensorEntityDescription(
+        key="passive_autonomy",
+        translation_key="passive_autonomy",
+        entity_registry_enabled_default=False,
+        device_class=SensorDeviceClass.DURATION,
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+        value_fn=lambda data: data["passive_autonomy_minutes"],
+    ),
+    WaterSteerSensorEntityDescription(
+        key="predicted_autonomy",
+        translation_key="predicted_autonomy",
+        entity_registry_enabled_default=False,
+        device_class=SensorDeviceClass.DURATION,
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+        value_fn=lambda data: data["predicted_autonomy_minutes"],
+    ),
+    WaterSteerSensorEntityDescription(
+        key="predicted_temperature_6h",
+        translation_key="predicted_temperature_6h",
+        entity_registry_enabled_default=False,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        value_fn=lambda data: data["predicted_temperature_6h"],
+    ),
+    WaterSteerSensorEntityDescription(
+        key="autonomy_confidence",
+        translation_key="autonomy_confidence",
+        entity_registry_enabled_default=False,
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda data: data["autonomy_confidence"],
+    ),
+    WaterSteerSensorEntityDescription(
+        key="safe_margin",
+        translation_key="safe_margin",
+        device_class=SensorDeviceClass.DURATION,
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        suggested_unit_of_measurement=UnitOfTime.HOURS,
+        suggested_display_precision=1,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda data: data["safe_margin_minutes"],
+    ),
+    WaterSteerSensorEntityDescription(
+        key="safe_margin_confidence",
+        translation_key="safe_margin_confidence",
+        entity_registry_enabled_default=False,
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda data: data["safe_margin_confidence"],
+    ),
+    WaterSteerSensorEntityDescription(
+        key="price_plan_status",
+        translation_key="price_plan_status",
+        entity_registry_enabled_default=False,
+        value_fn=lambda data: data["price_plan_status"],
+    ),
+    WaterSteerSensorEntityDescription(
+        key="next_charge",
+        translation_key="next_charge",
+        entity_registry_enabled_default=False,
+        device_class=SensorDeviceClass.TIMESTAMP,
+        value_fn=lambda data: data["price_plan_next_charge"],
+    ),
+    WaterSteerSensorEntityDescription(
+        key="expected_charge_duration",
+        translation_key="expected_charge_duration",
+        entity_registry_enabled_default=False,
+        device_class=SensorDeviceClass.DURATION,
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+        value_fn=lambda data: data["price_plan_expected_charge_minutes"],
+    ),
+    WaterSteerSensorEntityDescription(
+        key="planned_target",
+        translation_key="planned_target",
+        entity_registry_enabled_default=False,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        value_fn=lambda data: data["price_plan_target"],
+    ),
+    WaterSteerSensorEntityDescription(
+        key="selected_price",
+        translation_key="selected_price",
+        entity_registry_enabled_default=False,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=3,
+        value_fn=lambda data: data["price_plan_selected_price"],
+    ),
+    WaterSteerSensorEntityDescription(
+        key="usage_probability_next_6h",
+        translation_key="usage_probability_next_6h",
+        entity_registry_enabled_default=False,
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+        value_fn=lambda data: data["usage_probability_next_6h"],
+    ),
+    WaterSteerSensorEntityDescription(
+        key="expected_usage_drop_next_6h",
+        translation_key="expected_usage_drop_next_6h",
+        entity_registry_enabled_default=False,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        value_fn=lambda data: data["expected_usage_drop_next_6h"],
+    ),
+    WaterSteerSensorEntityDescription(
+        key="demand_level",
+        translation_key="demand_level",
+        entity_registry_enabled_default=False,
+        value_fn=lambda data: data["demand_level"],
+    ),
+    WaterSteerSensorEntityDescription(
+        key="next_expected_usage",
+        translation_key="next_expected_usage",
+        entity_registry_enabled_default=False,
+        device_class=SensorDeviceClass.TIMESTAMP,
+        value_fn=lambda data: data["next_expected_usage"],
+    ),
+    WaterSteerSensorEntityDescription(
+        key="typical_usage_drop",
+        translation_key="typical_usage_drop",
+        entity_registry_enabled_default=False,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        value_fn=lambda data: data["typical_usage_drop"],
+    ),
+    WaterSteerSensorEntityDescription(
+        key="usage_learning_confidence",
+        translation_key="usage_learning_confidence",
+        entity_registry_enabled_default=False,
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda data: data["usage_learning_confidence"],
     ),
 )
 
@@ -65,6 +299,9 @@ class WaterSteerSensor(
     """Representation of a WaterSteer sensor."""
 
     _attr_has_entity_name = True
+    # Large, frequently changing forecast lists stay visible as attributes on
+    # diagnostic entities but are kept out of the recorder database.
+    _unrecorded_attributes = frozenset({"hourly_forecast", "explanation"})
 
     def __init__(
         self,
@@ -76,14 +313,150 @@ class WaterSteerSensor(
         super().__init__(coordinator)
         self.entity_description = description
         self._attr_unique_id = f"{entry.entry_id}_{description.key}"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.entry_id)},
-            name="WaterSteer",
-            manufacturer="WaterSteer",
-            model="DHW optimization controller",
-        )
+        self._attr_device_info = device_info(entry)
+        if (
+            not description.entity_registry_enabled_default
+            and description.entity_category is None
+        ):
+            self._attr_entity_category = EntityCategory.DIAGNOSTIC
 
     @property
     def native_value(self) -> Any:
         """Return the current sensor value."""
         return self.entity_description.value_fn(self.coordinator.data)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Return a small, meaningful set of attributes per entity."""
+        data = self.coordinator.data
+        key = self.entity_description.key
+
+        if key == "status":
+            return {
+                "explanation": data["explanation"],
+                "control_request": data["control_request"],
+                "mode": data["control_mode"],
+                "warnings": data["safety_warnings"],
+                "next_planned_heating": data["price_plan_next_charge"],
+            }
+
+        if key == "optimization":
+            return {
+                "horizon_hours": _round(data["shadow_horizon_hours"]),
+                "lowest_temperature_with_plan": _round(
+                    data["shadow_plan_min_temperature"]
+                ),
+                "lowest_temperature_without_plan": _round(
+                    data["shadow_normal_min_temperature"]
+                ),
+                "heating_hours_with_plan": _round(data["shadow_plan_heating_hours"]),
+                "heating_hours_without_plan": _round(
+                    data["shadow_normal_heating_hours"]
+                ),
+            }
+
+        if key == "control_request":
+            return {
+                "reason": data["control_request_reason"],
+                "block": data["block"],
+                "extra_hot_water": data["extra_hot_water"],
+                "safety_override": data["control_request_safety_override"],
+                "optimizer_intent": data["control_request_optimizer_intent"],
+                "optimizer_reason": data["control_request_optimizer_reason"],
+                "safety_warnings": data["safety_warnings"],
+                "hold_minutes": data["hold_minutes"],
+            }
+
+        if key == "safe_margin":
+            return {
+                "confidence": data["safe_margin_confidence"],
+                "demand_adjusted": data["safe_margin_usage_adjusted"],
+                "demand_level": data["demand_level"],
+                "next_expected_usage": data["next_expected_usage"],
+                "temperature_in_6h": (
+                    round(data["predicted_temperature_6h"], 1)
+                    if data["predicted_temperature_6h"] is not None
+                    else None
+                ),
+            }
+
+        if key == "learning_confidence":
+            return {
+                "usage_confidence": data["usage_learning_confidence"],
+                "optimization_ready": data["optimization_ready"],
+                "required_confidence": data["minimum_thermal_confidence"],
+                "observed_hours": round(data["thermal_observation_hours"], 1),
+                "usage_observed_days": data["usage_observed_days"],
+                "loss_model": data["thermal_loss_model"],
+                "heat_pump_starts_hot_water_on_its_own": data[
+                    "heat_pump_starts_hot_water_on_its_own"
+                ],
+                "heat_pump_start_delay_minutes": round(
+                    data["heat_pump_start_delay_minutes"]
+                ),
+                "room_temperature_estimate": (
+                    round(data["thermal_ambient_estimate"], 1)
+                    if data["thermal_ambient_estimate"] is not None
+                    else None
+                ),
+                "prediction_error_6h": (
+                    round(data["thermal_validation_error"], 2)
+                    if data["thermal_validation_error"] is not None
+                    else None
+                ),
+            }
+
+        if key in {
+            "standby_loss",
+            "heating_rate",
+            "time_to_comfort",
+            "passive_autonomy",
+            "predicted_autonomy",
+            "predicted_temperature_6h",
+            "autonomy_confidence",
+            "safe_margin_confidence",
+        }:
+            return {
+                "observation_count": data["thermal_observation_count"],
+                "passive_segment_count": data["passive_segment_count"],
+                "heating_segment_count": data["heating_segment_count"],
+                "heating_confidence": data["heating_confidence"],
+                "autonomy_basis": data["autonomy_basis"],
+            }
+
+        if key in {
+            "price_plan_status",
+            "next_charge",
+            "expected_charge_duration",
+            "planned_target",
+            "selected_price",
+        }:
+            return {
+                "reason": data["price_plan_reason"],
+                "charge_end": data["price_plan_charge_end"],
+                "planning_deadline": data["price_plan_deadline"],
+                "next_peak_start": data["price_plan_next_peak_start"],
+                "next_peak_end": data["price_plan_next_peak_end"],
+            }
+
+        if key in {
+            "usage_probability_next_6h",
+            "expected_usage_drop_next_6h",
+            "demand_level",
+            "next_expected_usage",
+            "typical_usage_drop",
+            "usage_learning_confidence",
+        }:
+            return {
+                "usage_event_count": data["usage_event_count"],
+                "observed_days": data["usage_observed_days"],
+                "profile_day_type": data["usage_profile_day_type"],
+                "hourly_forecast": data["usage_forecast"],
+            }
+
+        return None
+
+
+def _round(value: float | None) -> float | None:
+    """Round for display, keeping None."""
+    return None if value is None else round(value, 1)
