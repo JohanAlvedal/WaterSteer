@@ -33,6 +33,7 @@ from .const import (
     CONF_ELECTRICITY_PRICE_ENTITY,
     CONF_EXTERNAL_HEATING_ENTITY,
     CONF_EXTRA_HOT_WATER_ENTITY,
+    CONF_EXTRA_HOT_WATER_FOR_PLANNED_CHARGES,
     CONF_HEAT_PUMP_DHW_ACTIVE_ENTITY,
     CONF_HEAT_PUMP_DHW_AVAILABLE_ENTITY,
     CONF_MAX_HOLD_HOURS,
@@ -46,6 +47,7 @@ from .const import (
     DEFAULT_ABSOLUTE_MINIMUM,
     DEFAULT_COMFORT_ESCALATION_MINUTES,
     DEFAULT_COMFORT_MINIMUM,
+    DEFAULT_EXTRA_HOT_WATER_FOR_PLANNED_CHARGES,
     DEFAULT_MAX_HOLD_HOURS,
     DEFAULT_MIN_THERMAL_CONFIDENCE,
     DEFAULT_NORMAL_TARGET,
@@ -379,6 +381,13 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.safety.max_hold_hours = float(
             config.get(CONF_MAX_HOLD_HOURS, DEFAULT_MAX_HOLD_HOURS)
         )
+        self.charge.assist_planned = (
+            config.get(
+                CONF_EXTRA_HOT_WATER_FOR_PLANNED_CHARGES,
+                DEFAULT_EXTRA_HOT_WATER_FOR_PLANNED_CHARGES,
+            )
+            is not False
+        )
         self.safety.comfort_escalation_minutes = float(
             config.get(
                 CONF_COMFORT_ESCALATION_MINUTES,
@@ -551,6 +560,7 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             proposed_intent=horizon_decision.intent,
             proposed_reason=horizon_decision.reason,
             warnings=(() if thresholds_valid else ("invalid_threshold_configuration",)),
+            normal_target=thresholds.normal_target,
         )
         external_heating_entity = config.get(CONF_EXTERNAL_HEATING_ENTITY)
         external_heating_active = (
@@ -584,6 +594,7 @@ class WaterSteerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             # A finishing charge is not a hold; do not count it towards the
             # continuous hold limit.
             self.safety.hold_since = None
+            self.safety.hold_counted_since = None
         output: ControlOutput = arbitrate(
             heating_assist=charge.assist,
             mode=self.mode,

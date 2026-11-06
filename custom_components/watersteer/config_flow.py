@@ -13,6 +13,7 @@ from homeassistant.config_entries import (
 )
 from homeassistant.core import callback
 from homeassistant.helpers.selector import (
+    BooleanSelector,
     EntitySelector,
     EntitySelectorConfig,
     NumberSelector,
@@ -32,6 +33,7 @@ from .const import (
     CONF_ELECTRICITY_PRICE_ENTITY,
     CONF_EXTERNAL_HEATING_ENTITY,
     CONF_EXTRA_HOT_WATER_ENTITY,
+    CONF_EXTRA_HOT_WATER_FOR_PLANNED_CHARGES,
     CONF_HEAT_PUMP_BLOCK_ACTION,
     CONF_HEAT_PUMP_BOOST_ACTION,
     CONF_HEAT_PUMP_DHW_ACTIVE_ENTITY,
@@ -48,6 +50,7 @@ from .const import (
     DEFAULT_ABSOLUTE_MINIMUM,
     DEFAULT_COMFORT_ESCALATION_MINUTES,
     DEFAULT_COMFORT_MINIMUM,
+    DEFAULT_EXTRA_HOT_WATER_FOR_PLANNED_CHARGES,
     DEFAULT_MAX_HOLD_HOURS,
     DEFAULT_MIN_THERMAL_CONFIDENCE,
     DEFAULT_NORMAL_TARGET,
@@ -214,6 +217,10 @@ def _heat_pump_schema() -> vol.Schema:
             vol.Optional(CONF_HEAT_PUMP_DHW_ACTIVE_ENTITY): EntitySelector(
                 EntitySelectorConfig(domain=["binary_sensor", "sensor"])
             ),
+            vol.Optional(
+                CONF_EXTRA_HOT_WATER_FOR_PLANNED_CHARGES,
+                default=DEFAULT_EXTRA_HOT_WATER_FOR_PLANNED_CHARGES,
+            ): BooleanSelector(),
         }
     )
 

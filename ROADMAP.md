@@ -14,8 +14,8 @@ Nothing is marked production-ready yet: every part below still needs field valid
 | Demand forecast | 24 h statistical forecast |
 | Price planning | Cheapest safe window before the comfort deadline; spread-based peak detection; precharge before peaks |
 | Shadow price planner | 15-minute simulation of normal operation vs WaterSteer's plan; vetoes holds that would breach comfort; relative expected saving |
-| Safety supervisor | Persistent critical-recovery latch; comfort-recovery escalation; maximum continuous hold with lockout; no hold below comfort; fail-open on missing temperature; safe defaults on invalid limits |
-| Charging | Planned charges finish at their target (hysteresis); extra hot water assists when the heat pump does not start on its own; hold hysteresis and minimum charge size prevent cycling |
+| Safety supervisor | Persistent critical-recovery latch; comfort-recovery escalation; maximum continuous hold below the normal target, with lockout; no hold below comfort; fail-open on missing temperature; safe defaults on invalid limits |
+| Charging | Planned charges finish at their target (hysteresis); extra hot water assists only after the heat pump has had its learned start delay to start on its own (rolling self-start history), optionally never for planned charges; hold hysteresis and minimum charge size prevent cycling |
 | Closed-loop test | Four simulated days in Active control against a tank and heat-pump model, for low- and high-start heat pumps: tank stays above 43 °C after learning, < 20 % of heat in the most expensive hours, few lever changes per day |
 | Arbitration | One decision point mapping to two physical levers (block, extra hot water), a user status and a human explanation; external heat source (iBoost) suppresses optional preheating |
 | Active control | Optional Mode select; idempotent, rate-limited blocking, immediate safety direction; respects manual extra hot water; releases on mode change, unload and Home Assistant stop |

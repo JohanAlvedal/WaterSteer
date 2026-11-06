@@ -46,7 +46,8 @@ Active control only happens after you select it yourself. WaterSteer then:
 - sends a command only when the entity is not already in the wanted state;
 - unblocks and requests extra hot water immediately when the tank needs it;
 - finishes a planned cheap charge to its target instead of stopping half-way;
-- learns whether the heat pump starts hot water by itself when unblocked. Ground-source heat pumps usually do not, so after the first charge WaterSteer requests extra hot water at the start of every planned charge and every comfort recovery instead of waiting;
+- always gives the heat pump the chance to start hot water by itself first, and only requests extra hot water if the tank has not started warming within the learned start delay (×1.5, 15–45 min). Whether the heat pump starts by itself is kept as a rolling history of the last six charges, so one slow start does not change behaviour for good;
+- with *Extra hot water for planned charges* turned off, uses extra hot water only for comfort recovery and protection. Turn it off if extra hot water runs the immersion heater on your heat pump (common on IVT and other ground-source models): a price-planned charge on the immersion heater costs two to three times as much heat as one on the compressor;
 - learns how long the heat pump needs before the tank starts warming and includes that delay when choosing charge windows;
 - blocks at most once every 10 minutes, so it never toggles the heat pump rapidly;
 - never switches off extra hot water that you turned on yourself;
@@ -61,7 +62,7 @@ If Home Assistant crashes, nothing can release the block. If your heat pump supp
 3. Choose heat pump or standalone water heater.
 4. Select the hot water temperature sensor and the electricity price sensor. Future prices are read from common attributes (`raw_today`/`raw_tomorrow`, `today`/`tomorrow`, `prices`, `forecast`). Optionally select an occupancy entity and an "other heat source" entity such as an iBoost.
 5. Check the temperature limits (defaults below).
-6. Optionally select the switch that blocks hot water and the switch that starts extra hot water.
+6. Optionally select the switch that blocks hot water and the switch that starts extra hot water, and choose whether extra hot water may be used for price-planned charges.
 
 Leave Mode on Advisory for the first days and watch Status and Hot water remaining.
 
@@ -73,7 +74,7 @@ Leave Mode on Advisory for the first days and watch Status and Hot water remaini
 | Comfort minimum | 45 °C | Below: heating is never held, regardless of price. |
 | Normal target | 50 °C | At or above: hot water is sufficient. Below it, heating may still wait for a cheaper planned window as long as the tank stays at least 1.5 °C above the comfort minimum. |
 | Precharge target | 55 °C | Target when heating ahead of an expensive period. |
-| Maximum continuous hold | 12 h | After this, normal operation for at least one hour. |
+| Maximum continuous hold | 12 h | Time held below the normal target; after this, normal operation for at least one hour. Time at or above the normal target does not count. |
 | Comfort recovery escalation | 45 min | If the tank stays below comfort this long without warming, extra hot water is requested. |
 
 ## Safety rules
@@ -86,7 +87,7 @@ Every decision passes a safety supervisor last. It can only make a decision safe
 | At or below absolute minimum | Extra hot water until the comfort minimum is reached. Survives restarts. |
 | Below comfort minimum without warming | Extra hot water after the escalation time. |
 | Hold requested below comfort minimum | Rejected. |
-| Hold longer than the maximum | Released, then normal operation for one hour. |
+| Hold below the normal target longer than the maximum | Released, then normal operation for one hour. |
 | Shadow simulation predicts the plan would drop below comfort | No hold. |
 | Temperature limits not in order | Built-in safe limits are used; price optimization is paused. |
 | Other heat source active | Optional preheating is skipped; safety heating still happens. |

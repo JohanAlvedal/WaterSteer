@@ -18,7 +18,17 @@ BOOST_RESERVE_MINUTES = 30.0
 # the tank has dropped meaningfully. Without this, the plan alternates between
 # hold and heat every time the tank crosses the target.
 HOLD_HYSTERESIS_C = 2.5
-MIN_CHARGE_DEFICIT_C = 2.0
+# Inside a selected cheap window a charge starts once the tank is this far
+# below the normal target. The charge itself heats to the midpoint of normal
+# and precharge target, so it is still a meaningful charge (3.5 °C with the
+# 45/50/55 defaults), but it no longer waits for the tank to drift 2 °C below
+# normal. Field data (IVT, 6 Nov): with the old 48 °C start the 02:30 window
+# (0.97 SEK) was skipped at 49 °C and the charge fired at 05:50 when the tank
+# crossed 48 °C, just before the morning peak. Starting at every 2 °C deficit
+# to the charge target was tested too: it makes many small evening top-ups
+# and moves the next charge into the expensive morning (replay: 1.40 -> 1.64
+# SEK per heated °C).
+WINDOW_CHARGE_BELOW_NORMAL_C = 1.0
 # Waiting for a cheaper planned window is allowed down to this margin above
 # the comfort minimum. The planner has already checked that the window starts
 # before the predicted comfort deadline (with reserve), the shadow simulation
@@ -178,7 +188,7 @@ def optimize_horizon(
         )
 
     if price_plan.status == "price_charge_window":
-        if current_temperature > normal_target - MIN_CHARGE_DEFICIT_C:
+        if current_temperature > normal_target - WINDOW_CHARGE_BELOW_NORMAL_C:
             return _decision(
                 "hold" if current_temperature >= price_wait_floor else "normal",
                 "deficit_too_small_to_start_charge",
