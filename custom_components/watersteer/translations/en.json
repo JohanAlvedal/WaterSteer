@@ -36,7 +36,7 @@
           "comfort_minimum": "Comfort minimum",
           "normal_target": "Normal target",
           "precharge_target": "Precharge target",
-          "min_thermal_confidence": "Minimum thermal confidence for braking",
+          "min_thermal_confidence": "Minimum thermal confidence for holding",
           "max_hold_hours": "Maximum continuous hold",
           "comfort_escalation_minutes": "Comfort recovery escalation"
         },
@@ -111,7 +111,7 @@
           "comfort_minimum": "Comfort minimum",
           "normal_target": "Normal target",
           "precharge_target": "Precharge target",
-          "min_thermal_confidence": "Minimum thermal confidence for braking",
+          "min_thermal_confidence": "Minimum thermal confidence for holding",
           "max_hold_hours": "Maximum continuous hold",
           "comfort_escalation_minutes": "Comfort recovery escalation"
         },

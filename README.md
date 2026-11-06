@@ -6,6 +6,11 @@ It learns how your tank cools down, how fast it heats up and when your household
 
 > Comfort always wins. Cheap electricity alone never starts heating, and WaterSteer never holds heating when the tank is below your comfort temperature.
 
+> [!WARNING]
+> **WaterSteer is under active development and is not finished.** It has not yet been validated across a full heating season or on many different heat pumps and water heaters. Behaviour, defaults and entities may still change between versions.
+>
+> If you run it anyway — and especially if you use **Active control**, where WaterSteer switches your heat pump or water heater — you do so **at your own risk**. Start in Advisory mode, keep an eye on your hot water temperature, keep the heat pump's own safety and legionella functions enabled, and make sure you can switch the block off by hand. The software is provided as is, without warranty of any kind (see [LICENSE](LICENSE), GPL-3.0, sections 15–16).
+
 ## What you see
 
 | Entity | What it tells you |
@@ -14,7 +19,7 @@ It learns how your tank cools down, how fast it heats up and when your household
 | **Mode** | Advisory, Active control or Off (see below). |
 | **Hot water remaining** | Hours until the tank reaches your comfort temperature, including expected use. |
 | **Thermal learning confidence** | How well WaterSteer knows your tank. Price optimization starts at 50 % by default. |
-| **Expected saving** | Simulated saving over the price horizon compared with letting the heat pump run on its own. Empty until WaterSteer has learned enough. |
+| **Expected saving** | Simulated relative saving over the price horizon compared with letting the heat pump run on its own — an estimate, not kronor, and not yet validated. Empty until WaterSteer has learned enough. |
 | **Safety** | On when something needs attention (missing sensor, safety override, control problem). The `warnings` attribute says what. |
 | **Control request** | The machine-readable decision for your own automations: `hold`, `normal`, `heat`, `force_heat`, `precharge`, `boost`. |
 
@@ -38,7 +43,7 @@ Everything else (learned loss rates, usage profiles, planner details) is availab
 | Mode | What WaterSteer does |
 | --- | --- |
 | **Advisory** (default) | Learns and publishes decisions. Switches nothing. |
-| **Active control** | Switches the *Block hot water* and *Extra hot water* entities you selected. |
+| **Active control** | Switches the *Block hot water* and *Extra hot water* entities you selected (or the heater switch for a standalone water heater). Experimental — see the warning above. |
 | **Off** | Releases everything and publishes `normal`. |
 
 Active control only happens after you select it yourself. WaterSteer then:
@@ -60,9 +65,11 @@ If Home Assistant crashes, nothing can release the block. If your heat pump supp
 1. Install through HACS (custom repository) and restart Home Assistant.
 2. Add the WaterSteer integration.
 3. Choose heat pump or standalone water heater.
-4. Select the hot water temperature sensor and the electricity price sensor. Future prices are read from common attributes (`raw_today`/`raw_tomorrow`, `today`/`tomorrow`, `prices`, `forecast`). Optionally select an occupancy entity and an "other heat source" entity such as an iBoost.
+4. Select the hot water temperature sensor and the electricity price sensor. Future prices are read from common attributes (`raw_today`/`raw_tomorrow`, `today`/`tomorrow`, `prices`, `price_data`, `forecast`). Optionally select an occupancy entity (binary sensor, input boolean or person) and an "other heat source" entity such as an iBoost (binary sensor, input boolean or switch).
 5. Check the temperature limits (defaults below).
-6. Optionally select the switch that blocks hot water and the switch that starts extra hot water, and choose whether extra hot water may be used for price-planned charges.
+6. Optionally select the control entities:
+   - **Heat pump:** the switch or input boolean that blocks hot water, the one that starts extra hot water, and optionally an entity that shows when the heat pump is producing hot water. Choose whether extra hot water may be used for price-planned charges.
+   - **Standalone water heater:** the switch that powers the heater (on = heating allowed, off = held) and optionally its power sensor (above 50 W counts as heating). There is no extra-hot-water lever for a standalone heater.
 
 Leave Mode on Advisory for the first days and watch Status and Hot water remaining.
 
@@ -75,7 +82,8 @@ Leave Mode on Advisory for the first days and watch Status and Hot water remaini
 | Normal target | 50 °C | At or above: hot water is sufficient. Below it, heating may still wait for a cheaper planned window as long as the tank stays at least 1.5 °C above the comfort minimum. |
 | Precharge target | 55 °C | Target when heating ahead of an expensive period. |
 | Maximum continuous hold | 12 h | Time held below the normal target; after this, normal operation for at least one hour. Time at or above the normal target does not count. |
-| Comfort recovery escalation | 45 min | If the tank stays below comfort this long without warming, extra hot water is requested. |
+| Comfort recovery escalation | 45 min | If the tank stays below comfort this long without warming by 0.5 °C, extra hot water is requested. |
+| Minimum thermal confidence for holding | 50 % | No holding until thermal learning confidence reaches this level. |
 
 ## Safety rules
 
@@ -97,7 +105,7 @@ WaterSteer does not replace the heat pump's own safety functions or legionella p
 
 ## Using your own automations instead of Active control
 
-Keep Mode on Advisory and mirror the two levers that WaterSteer publishes as attributes of `sensor.watersteer_control_request`: `block` and `extra_hot_water`. (The same values are available as the *DHW allowed* and *Extra hot water request* binary sensors, disabled by default.) Use the levers rather than mapping the request names yourself: `heat` and `precharge` also need extra hot water when the heat pump does not start on its own.
+Keep Mode on Advisory and mirror the two levers that WaterSteer publishes as attributes of `sensor.watersteer_control_request`: `block` and `extra_hot_water`. (The same values are available as the *DHW allowed* binary sensor, which is the inverse of `block`, and the *Extra hot water request* binary sensor, both disabled by default.) Use the levers rather than mapping the request names yourself: `heat` and `precharge` also need extra hot water when the heat pump does not start on its own.
 
 A robust automation:
 
