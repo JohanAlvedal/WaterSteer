@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="custom_components/watersteer/brand/dark_logo.png">
+    <img src="custom_components/watersteer/brand/logo.png" alt="WaterSteer" width="420">
+  </picture>
+</p>
+
 # WaterSteer
 
 WaterSteer is a local Home Assistant integration that heats your domestic hot water when electricity is cheap — without ever letting you run out of hot water.
@@ -60,9 +67,25 @@ Active control only happens after you select it yourself. WaterSteer then:
 
 If Home Assistant crashes, nothing can release the block. If your heat pump supports it, give the block function its own timeout.
 
+## Installation
+
+Requires Home Assistant 2026.3 or later. WaterSteer is not in the default catalog yet, so add it by its repository link.
+
+**Home Assistant 2026.11 and later (Marketplace):** go to **Settings → Marketplace**, add a repository from link with `https://github.com/JohanAlvedal/WaterSteer` and type *Integration*, or use [this My link](https://my.home-assistant.io/redirect/marketplace_repository/?owner=JohanAlvedal&repository=WaterSteer&category=integration). Install it and restart Home Assistant.
+
+**Home Assistant 2026.3 – 2026.10 (HACS):** add `https://github.com/JohanAlvedal/WaterSteer` as a custom repository of type *Integration*, install it and restart Home Assistant.
+
+[![Open your Home Assistant instance and open the repository in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=JohanAlvedal&repository=WaterSteer&category=integration)
+
+**Manually:** copy `custom_components/watersteer` into your `config/custom_components/` folder and restart Home Assistant.
+
+Then add the integration:
+
+[![Open your Home Assistant instance and start setting up WaterSteer.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=watersteer)
+
 ## Setup
 
-1. Install through HACS (custom repository) and restart Home Assistant.
+1. Install WaterSteer (see above) and restart Home Assistant.
 2. Add the WaterSteer integration.
 3. Choose heat pump or standalone water heater.
 4. Select the hot water temperature sensor and the electricity price sensor. Future prices are read from common attributes (`raw_today`/`raw_tomorrow`, `today`/`tomorrow`, `prices`, `price_data`, `forecast`). Optionally select an occupancy entity (binary sensor, input boolean or person) and an "other heat source" entity such as an iBoost (binary sensor, input boolean or switch).

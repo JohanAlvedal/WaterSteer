@@ -1,7 +1,14 @@
 {
   "domain": "watersteer",
   "name": "WaterSteer",
-  "codeowners": ["@JohanAlvedal"],
+  "categories": [
+    "climate.water_heaters",
+    "climate.heat_pumps_air_conditioning",
+    "energy"
+  ],
+  "codeowners": [
+    "@JohanAlvedal"
+  ],
   "config_flow": true,
   "documentation": "https://github.com/JohanAlvedal/WaterSteer",
   "iot_class": "calculated",
