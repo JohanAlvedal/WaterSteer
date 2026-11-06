@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="custom_components/watersteer/brand/dark_logo.png">
+    <img src="custom_components/watersteer/brand/logo.png" alt="WaterSteer" width="420">
+  </picture>
+</p>
+
 # WaterSteer
 
 WaterSteer is a local Home Assistant integration that heats your domestic hot water when electricity is cheap — without ever letting you run out of hot water.
